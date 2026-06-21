@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk-Fire: Extintores DS 594</title>
+    <!-- Tailwind CSS para diseño moderno, responsivo y adaptativo (Tema Claro) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons para una interfaz rica, limpia y moderna -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Configuración e Integración PWA -->
+    <link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22Risk-Fire%20Pro%22%2C%22short_name%22%3A%22RiskFire%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f8fafc%22%2C%22theme_color%22%3A%22%23f97316%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fcdn-icons-png.flaticon.com%2F512%2F785%2F785116.png%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%22%7D%5D%7D">
+    <meta name="theme-color" content="#f8fafc">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        @media print {
+            body { background: white; color: black; }
+            .no-print { display: none !important; }
+            .print-card { border: 1px solid #ddd !important; box-shadow: none !important; margin: 0 !important; max-width: 100% !important; border-radius: 0 !important; }
+            .page-break-avoid { page-break-inside: avoid; }
+        }
+        .tab-content { transition: opacity 0.2s ease-in-out; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #e2e8f0; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+    </style>
+
+    <!-- MÓDULO DE INTEGRACIÓN DE BASE DE DATOS EN LA NUBE (FIREBASE) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.initCloudStorage = async function() {
+            try {
+                let firebaseConfig = {};
+                try {
+                    // Carga configuración del Sandbox si existe
+                    firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                } catch(e) {}
+
+             const firebaseConfig = {
+  apiKey: "AIzaSyD5Qa5AxrNcJmoRlqFLGXc9XyQmqZtVckg",
+  authDomain: "riskfire-e87e6.firebaseapp.com",
+  projectId: "riskfire-e87e6",
+  storageBucket: "riskfire-e87e6.firebasestorage.app",
+  messagingSenderId: "902706566782",
+  appId: "1:902706566782:web:82c14ec3ef9fa2b8b4ea2f"
+};
+                if (!Object.keys(firebaseConfig).length) {
+                    firebaseConfig = {
+                        apiKey: "TU_API_KEY",
+                        authDomain: "TU_PROYECTO.firebaseapp.com",
+                        projectId: "TU_PROYECTO",
+                        storageBucket: "TU_PROYECTO.appspot.com",
+                        messagingSenderId: "TUS_NUMEROS",
+                        appId: "TU_APP_ID"
+                    };
+                }
+
+                if (!Object.keys(firebaseConfig).length) {
+                    console.warn("Sin configuración de Nube. Usando almacenamiento local estricto.");
+                    return false;
+                }
+                
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                window.firebaseDb = getFirestore(app);
+                window.appId = typeof __app_id !== 'undefined' ? __app_id : 'risk-fire-pro-app';
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                return new Promise((resolve) => {
+                    onAuthStateChanged(auth, (user) => {
+                        window.firebaseUser = user;
+                        resolve(!!user);
+                    });
+                });
+            } catch (error) {
+                console.error("Error conectando a la Nube:", error);
+                return false;
+            }
+        };
+
+        window.saveToCloud = async function(data) {
+            if (!window.firebaseUser || !window.firebaseDb) return;
+            try {
+                const docRef = doc(window.firebaseDb, 'artifacts', window.appId, 'users', window.firebaseUser.uid, 'appState', 'main');
+                await setDoc(docRef, { state: JSON.stringify(data), updatedAt: Date.now() });
+            } catch (e) {
+                console.error("Error al sincronizar con Firebase:", e);
+            }
+        };
+
+        window.loadFromCloud = async function() {
+            if (!window.firebaseUser || !window.firebaseDb) return null;
+            try {
+                const docRef = doc(window.firebaseDb, 'artifacts', window.appId, 'users', window.firebaseUser.uid, 'appState', 'main');
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    return JSON.parse(docSnap.data().state);
+                }
+            } catch (e) {
+                console.error("Error al recuperar datos de Firebase:", e);
+            }
+            return null;
+        };
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col selection:bg-orange-500 selection:text-white">
+
+    <!-- OVERLAY DE CARGA Y SINCRONIZACIÓN -->
+    <div id="cloud-sync-overlay" class="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-white transition-opacity duration-300">
+        <div class="bg-slate-800 p-8 rounded-3xl flex flex-col items-center border border-slate-700 shadow-2xl">
+            <i data-lucide="cloud-lightning" class="w-16 h-16 mb-4 animate-bounce text-orange-500"></i>
+            <h2 class="text-xl font-black tracking-wide mb-1">Conectando a la Nube</h2>
+            <p class="text-xs text-slate-400 font-medium animate-pulse">Sincronizando historial y proyectos...</p>
+        </div>
+    </div>
+
+    <!-- ==================== PANTALLA DE LOGIN ==================== -->
+    <div id="login-screen" class="hidden fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6">
+            <div class="text-center space-y-2">
+                <div class="bg-gradient-to-tr from-orange-600 to-red-500 w-16 h-16 rounded-2xl shadow-lg mx-auto flex items-center justify-center mb-4">
+                    <i data-lucide="shield-alert" class="w-8 h-8 text-white"></i>
+                </div>
+                <h2 class="text-2xl font-black text-slate-900">Risk-Fire PRO</h2>
+                <p class="text-sm text-slate-500 font-medium">Inicia sesión para continuar</p>
+            </div>
+
+            <div class="space-y-4">
+                <div id="login-error" class="hidden bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl border border-red-200 text-center"></div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Correo Electrónico</label>
+                    <input type="email" id="login-email" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" placeholder="Admin@riskprice.cl">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Contraseña</label>
+                    <input type="password" id="login-password" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" placeholder="••••••••">
+                </div>
+                <button onclick="window.login()" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl shadow-md transition-colors mt-2">
+                    Ingresar al Sistema
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HEADER DE NAVEGACIÓN SUPERIOR -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 no-print shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-orange-600 to-red-500 p-2 rounded-xl shadow-md">
+                    <i data-lucide="shield-alert" class="w-6 h-6 text-white animate-pulse"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-xl tracking-tight bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent flex items-center gap-1.5">
+                        Risk-Fire <span class="text-xs bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-full border border-slate-200">PRO</span>
+                    </h1>
+                    <p class="text-[10px] text-slate-500 font-medium">Cálculo Objetivo D.S. 594</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Botón Guardar Proyecto -->
+                <button onclick="window.saveCurrentProject()" id="save-project-btn" class="hidden bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-orange-200 md:flex items-center space-x-1 transition-colors">
+                    <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Guardar Progreso</span>
+                </button>
+                
+                <div id="connection-status" class="hidden sm:flex items-center space-x-1.5 bg-slate-100 border border-slate-200 px-3 py-1 rounded-full text-xs">
+                    <span id="conn-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                    <span id="conn-text" class="font-bold text-slate-500">Offline</span>
+                </div>
+                
+                <!-- Botón Perfil (Configuración General) -->
+                <button onclick="window.switchTab('profile')" id="header-btn-profile" class="hidden bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 items-center space-x-1 transition-colors">
+                    <i data-lucide="user-cog" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Mi Perfil</span>
+                </button>
+                
+                <button onclick="window.logout()" id="logout-btn" class="hidden bg-slate-100 hover:bg-slate-200 text-red-600 hover:text-red-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 flex items-center space-x-1 transition-colors">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Salir</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- TAB NAV PARA ESCRITORIO -->
+    <nav class="bg-white/80 backdrop-blur-md border-b border-slate-200 py-2 sticky top-[69px] z-40 no-print hidden md:block">
+        <div class="max-w-7xl mx-auto px-4 flex space-x-2 overflow-x-auto">
+            <button onclick="window.switchTab('historial')" id="tab-btn-historial" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-2 bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 shadow-sm">
+                <i data-lucide="folder-clock" class="w-4 h-4"></i>
+                <span>0. Historial</span>
+            </button>
+            <button onclick="window.switchTab('calculadora')" id="tab-btn-calculadora" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-2 bg-orange-600 text-white shadow-sm">
+                <i data-lucide="calculator" class="w-4 h-4"></i>
+                <span>1. Sectores</span>
+            </button>
+            <button onclick="window.switchTab('checklist')" id="tab-btn-checklist" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all flex items-center space-x-2">
+                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                <span>2. Inspección</span>
+            </button>
+            <button onclick="window.switchTab('layout')" id="tab-btn-layout" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all flex items-center space-x-2">
+                <i data-lucide="map" class="w-4 h-4"></i>
+                <span>3. Plano</span>
+            </button>
+            <button onclick="window.switchTab('informe')" id="tab-btn-informe" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all flex items-center space-x-2">
+                <i data-lucide="file-text" class="w-4 h-4"></i>
+                <span>4. Reporte</span>
+            </button>
+            <button onclick="window.switchTab('tareas')" id="tab-btn-tareas" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all flex items-center space-x-2">
+                <i data-lucide="list-todo" class="w-4 h-4"></i>
+                <span>5. Tareas</span>
+            </button>
+            <button onclick="window.switchTab('admin')" id="tab-btn-admin" class="hidden tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 transition-all flex items-center space-x-2">
+                <i data-lucide="shield" class="w-4 h-4"></i>
+                <span>Admin</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- TAB NAV PARA MÓVIL (Con scroll horizontal para acomodar 8 botones) -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2 z-50 flex overflow-x-auto justify-start space-x-4 px-4 no-print shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe scroll-smooth snap-x">
+        <button onclick="window.switchTab('historial')" id="m-tab-btn-historial" class="snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-slate-500 font-bold text-[10px] transition-colors w-12">
+            <i data-lucide="folder-clock" class="w-5 h-5 mb-0.5"></i><span>Historial</span>
+        </button>
+        <button onclick="window.switchTab('calculadora')" id="m-tab-btn-calculadora" class="snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-orange-600 font-bold text-[10px] transition-colors w-12">
+            <i data-lucide="calculator" class="w-5 h-5 mb-0.5"></i><span>Sectores</span>
+        </button>
+        <button onclick="window.switchTab('checklist')" id="m-tab-btn-checklist" class="snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-slate-500 font-bold text-[10px] transition-colors w-12">
+            <i data-lucide="shield-check" class="w-5 h-5 mb-0.5"></i><span>Inspección</span>
+        </button>
+        <button onclick="window.switchTab('layout')" id="m-tab-btn-layout" class="snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-slate-500 font-bold text-[10px] transition-colors w-12">
+            <i data-lucide="map" class="w-5 h-5 mb-0.5"></i><span>Plano</span>
+        </button>
+        <button onclick="window.switchTab('profile')" id="m-tab-btn-profile" class="snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-slate-500 font-bold text-[10px] transition-colors w-12">
+            <i data-lucide="user-cog" class="w-5 h-5 mb-0.5"></i><span>Perfil</span>
+        </button>
+        <button onclick="window.switchTab('informe')" id="m-tab-btn-informe" class="snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-slate-500 font-bold text-[10px] transition-colors w-12">
+            <i data-lucide="file-text" class="w-5 h-5 mb-0.5"></i><span>Reporte</span>
+        </button>
+        <button onclick="window.switchTab('tareas')" id="m-tab-btn-tareas" class="snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-slate-500 font-bold text-[10px] transition-colors w-12">
+            <i data-lucide="list-todo" class="w-5 h-5 mb-0.5"></i><span>Tareas</span>
+        </button>
+        <button onclick="window.switchTab('admin')" id="m-tab-btn-admin" class="hidden snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-indigo-500 font-bold text-[10px] transition-colors w-12">
+            <i data-lucide="shield" class="w-5 h-5 mb-0.5"></i><span>Admin</span>
+        </button>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 pb-24 md:pb-8">
+
+        <!-- ==================== TAB 0: HISTORIAL DE PROYECTOS ==================== -->
+        <section id="tab-historial" class="tab-pane space-y-6 hidden">
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+                            <i data-lucide="folder-clock" class="text-orange-500 w-6 h-6"></i>
+                            Historial de Estudios
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-1">Gestiona, edita y recupera los informes guardados previamente.</p>
+                    </div>
+                    <div class="flex gap-2 w-full sm:w-auto">
+                        <button onclick="window.saveCurrentProject()" class="w-full sm:w-auto bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl transition-all flex items-center justify-center space-x-2 md:hidden shadow-sm">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                            <span>Guardar</span>
+                        </button>
+                        <button onclick="window.promptNewProject()" class="w-full sm:w-auto bg-orange-600 hover:bg-orange-500 text-white font-black px-4 py-2.5 rounded-xl transition-all flex items-center justify-center space-x-2 shadow-sm">
+                            <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                            <span>Nuevo Estudio</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="projects-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Los proyectos guardados se inyectan acá vía JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 1: CALCULADORA MULTIZONA DS 594 ==================== -->
+        <section id="tab-calculadora" class="tab-pane space-y-6">
+            
+            <!-- Datos del Cliente y Gestión de Sectores -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+                        <i data-lucide="building" class="text-orange-500 w-5 h-5"></i>
+                        Instalación y Áreas de Fuego
+                    </h2>
+                    <input type="text" id="client-name" placeholder="Nombre del Cliente" oninput="window.syncClientData()" class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-800 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all font-bold w-1/2 md:w-1/3">
+                </div>
+
+                <!-- Pestañas de Sectores -->
+                <div class="flex items-center space-x-2 overflow-x-auto pb-2 mb-4 scroll-smooth" id="sectors-nav">
+                    <!-- Botones de sectores se inyectan acá -->
+                </div>
+
+                <!-- Configurador del Sector Seleccionado -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-5 border border-slate-200 rounded-xl relative">
+                    <button onclick="window.promptDeleteSector()" class="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar Sector">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nombre del Sector</label>
+                        <input type="text" id="sector-name" oninput="window.syncSectorData()" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-orange-500 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Superficie del Sector (m²)</label>
+                        <div class="relative flex">
+                            <input type="number" id="sector-area" oninput="window.syncSectorData()" class="w-full bg-white border border-slate-300 rounded-l-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:border-orange-500 transition-all">
+                            <button type="button" onclick="window.openAreaHelper()" class="bg-slate-200 hover:bg-slate-300 border-y border-r border-slate-300 text-slate-700 px-3 rounded-r-xl text-xs font-bold transition-colors flex items-center space-x-1" title="Asistente de cálculo de superficie">
+                                <i data-lucide="drafting-compass" class="w-3.5 h-3.5 text-orange-600"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="pr-6">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Potencial Extintor a Instalar</label>
+                        <select id="sector-rating" onchange="window.syncSectorData()" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:border-orange-500 transition-all">
+                            <option value="4A">4A (Mínimo General)</option>
+                            <option value="6A">6A</option>
+                            <option value="10A">10A</option>
+                            <option value="20A">20A</option>
+                            <option value="40A">40A</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de Resultados D.S. 594 -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-4 mb-6">
+                    <div>
+                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                            <i data-lucide="target" class="text-orange-500 w-5 h-5"></i>
+                            Requerimiento Legal D.S. 594 (Art. 46)
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1">Estimación automática de cobertura basada estrictamente en la tabla del Art. 46.</p>
+                    </div>
+                    <div class="px-4 py-2 rounded-xl text-xs font-black tracking-wide border bg-indigo-50 text-indigo-700 border-indigo-200">
+                        CÁLCULO OBJETIVO D.S. 594
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl text-center flex flex-col justify-center items-center relative overflow-hidden">
+                        <div class="absolute -top-4 -right-4 opacity-5"><i data-lucide="flame" class="w-24 h-24"></i></div>
+                        <span class="block text-xs text-slate-500 font-bold uppercase tracking-widest mb-2 z-10">Potencial y Cobertura</span>
+                        <div class="flex items-baseline space-x-1 z-10">
+                            <span class="text-4xl font-black text-orange-600" id="req-ext-rating">4A</span>
+                        </div>
+                        <span class="text-xs text-slate-600 font-bold mt-1 z-10">Cubre: <span id="req-ext-cov">150</span> m² c/u</span>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl text-center flex flex-col justify-center items-center relative overflow-hidden">
+                        <div class="absolute -top-4 -right-4 opacity-5"><i data-lucide="layers" class="w-24 h-24"></i></div>
+                        <span class="block text-xs text-slate-500 font-bold uppercase tracking-widest mb-2 z-10">Dotación Requerida</span>
+                        <span class="text-4xl font-black text-slate-800 z-10" id="req-ext-qty">0</span>
+                        <span class="text-[10px] text-slate-400 font-semibold mt-2 z-10">Extintores Mínimos en Sector</span>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl text-center flex flex-col justify-center items-center relative overflow-hidden">
+                        <div class="absolute -top-4 -right-4 opacity-5"><i data-lucide="route" class="w-24 h-24"></i></div>
+                        <span class="block text-xs text-slate-500 font-bold uppercase tracking-widest mb-2 z-10">Distancia Máxima</span>
+                        <span class="text-4xl font-black text-slate-800 z-10" id="req-ext-distance">15m</span>
+                        <span class="text-[10px] text-slate-400 font-semibold mt-2 z-10">D.S. 594 Art. 47</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 2: CHECKLIST Y FOTOS ==================== -->
+        <section id="tab-checklist" class="tab-pane space-y-6 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Checklist Operativo Extintores -->
+                <div class="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+                            <i data-lucide="check-square" class="text-orange-500 w-5 h-5"></i>
+                            Inspección y Fotografías
+                        </h2>
+                        <button onclick="window.addExtinguisherCheck()" class="bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center space-x-1 transition-colors">
+                            <i data-lucide="plus" class="w-3.5 h-3.5 text-orange-500"></i>
+                            <span>Añadir Extintor</span>
+                        </button>
+                    </div>
+                    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-4 flex justify-between items-center">
+                        <div>
+                            <span class="block text-[10px] text-indigo-500 font-bold uppercase">Meta Instalación Completa</span>
+                            <span class="text-sm font-black text-indigo-700" id="global-req-qty-summary">Requiere X Equipos</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="block text-[10px] text-indigo-500 font-bold uppercase">Registrados</span>
+                            <span class="text-sm font-black text-indigo-700" id="global-current-qty-summary">0 Equipos</span>
+                        </div>
+                    </div>
+                    <div id="extinguishers-checklist" class="space-y-4 max-h-[600px] overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- Factor Humano & Emergencia -->
+                <div class="lg:col-span-5 space-y-6">
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <h2 class="text-lg font-bold flex items-center gap-2 mb-4 text-slate-800">
+                            <i data-lucide="users" class="text-orange-500 w-5 h-5"></i>
+                            Capacitación y Factor Humano
+                        </h2>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Dotación Total</label>
+                                    <input type="number" id="total-employees" oninput="window.updateEmployeeStats()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:border-orange-500 transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Personal Capacitado</label>
+                                    <input type="number" id="trained-employees" oninput="window.updateEmployeeStats()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:border-orange-500 transition-all">
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                                <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Nivel de Capacitación</span>
+                                <span id="trained-employees-display" class="text-lg font-black text-orange-600">0%</span>
+                            </div>
+                            
+                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-2">
+                                <label class="flex items-center justify-between cursor-pointer">
+                                    <span class="text-xs font-semibold text-slate-700">¿Cuenta con Brigada de Emergencia?</span>
+                                    <input type="checkbox" id="has-fire-brigade" class="w-4 h-4 rounded text-orange-600 bg-white border-slate-300 focus:ring-orange-500" onchange="window.updateBrigadeStatus(this.checked)">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <h2 class="text-lg font-bold flex items-center gap-2 mb-4 text-slate-800">
+                            <i data-lucide="map-pin" class="text-orange-500 w-5 h-5"></i>
+                            Plan de Emergencia y Evacuación
+                        </h2>
+                        <div class="space-y-3" id="evacuation-checklist"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 3: LAYOUT ==================== -->
+        <section id="tab-layout" class="tab-pane space-y-6 hidden">
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div class="flex flex-col md:flex-row md:items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+                            <i data-lucide="map" class="text-orange-500 w-5 h-5"></i>
+                            Plano de Distribución (Layout)
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-1">Carga un croquis y posiciona los elementos de seguridad.</p>
+                    </div>
+                    <div class="mt-3 md:mt-0 flex space-x-2">
+                        <input type="file" id="layout-uploader" accept="image/*" onchange="window.uploadLayout(event)" class="hidden">
+                        <label for="layout-uploader" class="bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 px-3 py-2 rounded-xl border border-slate-200 flex items-center space-x-1 cursor-pointer transition-colors">
+                            <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                            <span>Subir Plano</span>
+                        </label>
+                        <button onclick="window.clearLayoutPins()" class="bg-red-50 hover:bg-red-100 text-xs font-bold text-red-600 px-3 py-2 rounded-xl border border-red-200 flex items-center space-x-1 transition-all">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            <span>Limpiar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="relative bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl flex items-center justify-center p-2 min-h-[400px] overflow-hidden group">
+                    <img id="layout-image" src="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=1200&auto=format&fit=crop" class="max-w-full max-h-[500px] rounded-lg opacity-50 select-none pointer-events-none" alt="Plano">
+                    <div id="layout-canvas-overlay" onclick="window.placeExtinguisherPin(event)" class="absolute inset-0 cursor-crosshair"></div>
+                    <div id="pins-container" class="absolute inset-0 pointer-events-none"></div>
+                </div>
+
+                <div class="flex flex-wrap justify-center gap-2 mt-4" id="pin-controls">
+                    <button id="pin-type-PQS" onclick="window.setPinType('PQS')" class="pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 border border-orange-500 bg-orange-50 text-orange-600">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span><span>PQS</span>
+                    </button>
+                    <button id="pin-type-CO2" onclick="window.setPinType('CO2')" class="pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 border border-slate-200 bg-white text-slate-500">
+                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span><span>CO₂</span>
+                    </button>
+                    <button id="pin-type-K" onclick="window.setPinType('K')" class="pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 border border-slate-300 bg-slate-100 text-slate-800">
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span><span>Clase K</span>
+                    </button>
+                    <button id="pin-type-RED_HUMEDA" onclick="window.setPinType('RED_HUMEDA')" class="pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 border border-slate-200 bg-white text-slate-500">
+                        <i data-lucide="droplet" class="w-3.5 h-3.5 text-blue-500"></i><span>Red Húmeda</span>
+                    </button>
+                    <button id="pin-type-RED_SECA" onclick="window.setPinType('RED_SECA')" class="pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 border border-red-500 bg-red-50 text-red-700">
+                        <span class="flex items-center justify-center w-4 h-4 bg-red-600 text-white rounded-[4px] text-[8px]">RS</span><span>Red Seca</span>
+                    </button>
+                    <button id="pin-type-SALIDA" onclick="window.setPinType('SALIDA')" class="pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 border border-emerald-500 bg-emerald-50 text-emerald-700">
+                        <i data-lucide="door-open" class="w-3.5 h-3.5 text-emerald-600"></i><span>Salida</span>
+                    </button>
+                    <button id="pin-type-PEE" onclick="window.setPinType('PEE')" class="pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 border border-slate-200 bg-white text-slate-500">
+                        <span class="flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 text-white text-[7px]">PEE</span><span>PEE</span>
+                    </button>
+                    <button id="pin-type-SUSPEL" onclick="window.setPinType('SUSPEL')" class="pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 border border-slate-200 bg-white text-slate-500">
+                        <i data-lucide="skull" class="w-3.5 h-3.5 text-amber-500"></i><span>SUSPEL</span>
+                    </button>
+                    <div class="flex items-center space-x-1 border border-slate-200 rounded-xl bg-white p-1">
+                        <button id="pin-type-TEXT" onclick="window.setPinType('TEXT')" class="pin-btn px-2 py-1 rounded-lg text-[10px] font-black flex items-center text-slate-500 uppercase tracking-widest">
+                            <i data-lucide="type" class="w-3.5 h-3.5 mr-1"></i><span>Área:</span>
+                        </button>
+                        <input type="text" id="pin-text-input" placeholder="Nombre área..." class="text-xs font-semibold bg-slate-50 border border-slate-200 rounded px-2 py-1 w-28 focus:outline-none focus:border-indigo-400 focus:bg-white">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 4: PERFIL ==================== -->
+        <section id="tab-profile" class="tab-pane space-y-6 hidden">
+            <!-- Bloque de Logo Corporativo -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mb-6">
+                <div class="flex items-center space-x-3 mb-4">
+                    <div class="bg-indigo-50 p-2.5 rounded-xl border border-indigo-100 text-indigo-600"><i data-lucide="image" class="w-6 h-6"></i></div>
+                    <div><h2 class="text-lg font-bold text-slate-800">Logo Corporativo</h2><p class="text-xs text-slate-500">Personaliza el encabezado del reporte PDF.</p></div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="w-24 h-24 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center overflow-hidden shrink-0 relative" id="profile-logo-container">
+                        <i data-lucide="image-off" class="w-6 h-6 text-slate-300"></i>
+                    </div>
+                    <div>
+                        <input type="file" id="profile-logo-upload" accept="image/*" class="hidden" onchange="window.handleLogoUpload(event)">
+                        <label for="profile-logo-upload" class="cursor-pointer text-xs font-bold text-slate-700 bg-white border border-slate-300 px-4 py-2 rounded-lg shadow-sm hover:bg-slate-50 transition-colors inline-flex items-center">
+                            <i data-lucide="upload" class="w-4 h-4 mr-2"></i> Subir Logo
+                        </label>
+                        <button onclick="window.removeLogo()" id="remove-logo-btn" class="hidden ml-2 text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-4 py-2 rounded-lg shadow-sm hover:bg-red-100 transition-colors inline-flex items-center">
+                            <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> Quitar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bloque de Datos del Prevencionista -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div class="flex items-center space-x-3 mb-6">
+                    <div class="bg-orange-50 p-2.5 rounded-xl border border-orange-100 text-orange-600"><i data-lucide="user-cog" class="w-6 h-6"></i></div>
+                    <div><h2 class="text-lg font-bold text-slate-800">Datos del Prevencionista</h2></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre Completo</label><input type="text" id="prof-name" oninput="window.syncProfileData()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nº Registro</label><input type="text" id="prof-sns" oninput="window.syncProfileData()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" id="prof-email" oninput="window.syncProfileData()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Teléfono</label><input type="text" id="prof-phone" oninput="window.syncProfileData()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"></div>
+                    </div>
+                    <div class="space-y-3 flex flex-col">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Firma Digitalizada</label>
+                        <div class="relative flex-grow bg-slate-50 border border-slate-300 rounded-xl overflow-hidden min-h-[220px] flex items-center justify-center">
+                            <canvas id="signature-pad" class="absolute inset-0 w-full h-full cursor-crosshair"></canvas>
+                            <div id="sig-pad-prompt" class="absolute text-[11px] text-slate-400 font-bold select-none pointer-events-none uppercase tracking-widest">Firmar Aquí</div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="window.clearSignaturePad()" class="w-1/2 bg-slate-100 text-slate-700 text-xs font-bold py-2 rounded-lg border border-slate-200">Limpiar</button>
+                            <button onclick="window.saveSignaturePad()" class="w-1/2 bg-orange-600 text-white text-xs font-black py-2 rounded-lg shadow-sm">Guardar Firma</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nuevo Bloque de Cambio de Contraseña -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mt-6">
+                <div class="flex items-center space-x-3 mb-4">
+                    <div class="bg-red-50 p-2.5 rounded-xl border border-red-100 text-red-600"><i data-lucide="lock" class="w-6 h-6"></i></div>
+                    <div><h2 class="text-lg font-bold text-slate-800">Seguridad de la Cuenta</h2><p class="text-xs text-slate-500">Actualiza tu contraseña de acceso.</p></div>
+                </div>
+                <div id="password-msg" class="hidden text-xs font-bold mb-3 p-2 rounded border"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contraseña Actual</label><input type="password" id="current-password" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-800 focus:outline-none focus:border-orange-500"></div>
+                    <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nueva Contraseña</label><input type="password" id="new-password" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-800 focus:outline-none focus:border-orange-500"></div>
+                </div>
+                <button onclick="window.changePassword()" class="mt-4 bg-slate-800 hover:bg-slate-700 text-white text-xs font-black py-2.5 px-4 rounded-xl shadow-sm transition-colors">Actualizar Contraseña</button>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 5: REPORTE PDF MULTIZONA ==================== -->
+        <section id="tab-informe" class="tab-pane space-y-6 hidden">
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between shadow-sm gap-4 no-print">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-emerald-50 p-2.5 rounded-xl text-emerald-600 border border-emerald-100"><i data-lucide="check-circle2" class="w-5 h-5"></i></div>
+                    <div><h3 class="font-bold text-sm text-slate-800">Reporte Generado</h3></div>
+                </div>
+                <!-- BOTÓN ACTUALIZADO Y FUNCIONALIDAD DE GUARDADO INCORPORADA -->
+                <button onclick="window.saveAndPrintReport()" class="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-red-600 text-white text-sm font-black px-6 py-2.5 rounded-xl flex items-center justify-center space-x-2 shadow-md">
+                    <i data-lucide="printer" class="w-4 h-4"></i><span>Guardar y Generar PDF</span>
+                </button>
+            </div>
+
+            <div class="bg-white text-slate-900 rounded-3xl p-6 md:p-10 shadow-lg border border-slate-100 space-y-8 print-card max-w-4xl mx-auto" id="printable-report">
+                <!-- Header del Reporte -->
+                <div class="flex flex-col sm:flex-row items-start justify-between border-b-2 border-slate-800 pb-6 gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <img id="report-custom-logo" src="" class="hidden max-h-12 object-contain" alt="Logo Corporativo">
+                            <div id="report-default-logo" class="flex items-center space-x-2">
+                                <span class="bg-slate-800 text-white font-black px-2.5 py-1 text-sm rounded-lg tracking-wider">RISK-FIRE</span>
+                                <span class="text-xs font-black tracking-widest uppercase text-slate-500">AUDITORÍA LEGAL</span>
+                            </div>
+                        </div>
+                        <h1 class="text-xl sm:text-2xl font-black text-slate-900 uppercase">Cantidad y distribución mínima de extintores de acuerdo al DS 594, ART. 46</h1>
+                        <p class="text-xs text-slate-600 font-bold">Referencia legal: D.S. Nº 594 Art. 46</p>
+                    </div>
+                    <div class="text-right text-xs text-slate-600 space-y-1 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                        <div><strong>Fecha Emisión:</strong> <span id="report-date"></span></div>
+                        <div><strong>Vigencia:</strong> 1 Año</div>
+                    </div>
+                </div>
+
+                <!-- Resumen Global de la Instalación -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Organización Evaluada</h4>
+                        <div class="text-sm font-bold text-slate-800" id="report-client-name">Empresa</div>
+                        <div class="text-xs text-slate-600 mt-2"><i data-lucide="info" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i>Estudio desglosado por sectores independientes basado objetivamente en tabla Art. 46.</div>
+                    </div>
+                    <div class="space-y-2 md:border-l md:border-slate-300 md:pl-6">
+                        <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Resumen Global Instalación</h4>
+                        <div class="text-sm text-slate-800"><strong>Área Total Compuesta:</strong> <span id="report-global-area" class="font-black text-slate-900">0</span> m²</div>
+                        <div class="text-xs text-slate-800"><strong>Dotación Mín. Sumada:</strong> <span id="report-global-req-qty" class="font-black text-slate-900">0</span> Equipos</div>
+                        <div class="text-xs text-slate-800 flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
+                            <span>Equipos en Terreno: <strong id="report-global-current-qty">0</strong></span>
+                            <span id="report-global-compliance-badge" class="px-2 py-1 rounded text-[10px] font-black border">EVALUANDO</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Renderizado Dinámico de Sectores -->
+                <div class="space-y-3">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 pb-2">1. Desglose de Requerimientos por Sector</h3>
+                    <div id="report-sectors-container" class="space-y-4 mt-2">
+                        <!-- JS inyecta los bloques de los sectores aquí -->
+                    </div>
+                </div>
+
+                <!-- Propuesta Layout -->
+                <div class="space-y-3 page-break-avoid">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 pb-2">2. Plano de Distribución General</h3>
+                    <div class="relative max-w-md mx-auto border border-slate-300 rounded-xl overflow-hidden p-1 bg-slate-50">
+                        <img id="report-layout-img" src="" class="w-full h-auto opacity-70" alt="Layout">
+                        <div id="report-pins-container" class="absolute inset-0 pointer-events-none"></div>
+                    </div>
+                </div>
+
+                <!-- Registro Fotográfico y Estado Operativo -->
+                <div class="space-y-3 page-break-avoid mt-6">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 pb-2">3. Registro Fotográfico y Estado Operativo de Extintores</h3>
+                    <div id="report-extinguishers-log" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <!-- JS inyecta el log fotográfico aquí -->
+                    </div>
+                </div>
+
+                <!-- Plan de Acción -->
+                <div class="space-y-3 page-break-avoid mt-6">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 pb-2">4. Plan de Acción Consolidado</h3>
+                    <table class="w-full text-left text-[10px] md:text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800 text-white font-bold uppercase">
+                                <th class="p-2 border border-slate-400 w-1/12 text-center">ID</th>
+                                <th class="p-2 border border-slate-400 w-6/12">Medida Correctiva</th>
+                                <th class="p-2 border border-slate-400 w-2/12">Legal</th>
+                                <th class="p-2 border border-slate-400 w-2/12 text-center">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-action-plan-tbody" class="text-slate-800 font-medium"></tbody>
+                    </table>
+                </div>
+
+                <!-- Firmas -->
+                <div class="grid grid-cols-2 gap-12 pt-12 page-break-avoid">
+                    <div class="text-center border-t border-slate-400 pt-3 flex flex-col items-center justify-center">
+                        <div class="h-20 flex items-center justify-center overflow-hidden mb-1">
+                            <img id="report-signature-img" class="max-h-full max-w-full hidden" alt="Firma">
+                            <div id="report-signature-placeholder" class="text-[11px] text-slate-400 italic">Firma en perfil</div>
+                        </div>
+                        <div class="text-xs font-black text-slate-800" id="report-signature-prevencionista">Prevencionista</div>
+                        <div class="text-[10px] text-slate-500 font-bold uppercase" id="report-signature-sns">Nº SNS</div>
+                        <div class="text-[9px] text-slate-400" id="report-signature-contact">Email / Celular</div>
+                    </div>
+                    <div class="text-center border-t border-slate-400 pt-3 flex flex-col items-center justify-center">
+                        <div class="h-20 flex items-center justify-center"></div>
+                        <div class="text-xs font-black text-slate-800">Representante Legal</div>
+                        <div class="text-[10px] text-slate-500 font-bold uppercase" id="report-signature-client-name">Cliente</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 6: GESTOR DE TAREAS ==================== -->
+        <section id="tab-tareas" class="tab-pane space-y-6 hidden">
+            <!-- (Contenido estándar) -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+                            <i data-lucide="list-todo" class="text-orange-500 w-5 h-5"></i>
+                            Gestor de Acciones
+                        </h2>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-center">
+                        <span class="text-[10px] text-slate-500 font-bold uppercase">Cumplimiento Global</span>
+                        <span id="dashboard-compliance-score" class="block text-xl font-black text-emerald-600">100%</span>
+                    </div>
+                </div>
+                <div class="space-y-4" id="tasks-manager-list"></div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 7: PANEL DE ADMINISTRADOR ==================== -->
+        <section id="tab-admin" class="tab-pane space-y-6 hidden">
+            <!-- (Contenido estándar) -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div class="flex items-center space-x-3 mb-6">
+                    <div class="bg-indigo-50 p-2.5 rounded-xl border border-indigo-100 text-indigo-600"><i data-lucide="shield-check" class="w-6 h-6"></i></div>
+                    <div><h2 class="text-lg font-bold text-slate-800">Panel de Administración de Accesos</h2></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div class="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-xl p-5">
+                        <h3 class="text-sm font-bold text-slate-700 mb-4 border-b border-slate-200 pb-2">Crear Acceso</h3>
+                        <div id="admin-error-msg" class="hidden text-xs text-red-600 font-bold mb-3 p-2 bg-red-50 rounded border border-red-200"></div>
+                        <div class="space-y-4">
+                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nombre Completo</label><input type="text" id="new-user-name" class="w-full bg-white border border-slate-300 text-xs font-semibold rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-indigo-500" placeholder="Ej: Juan Pérez"></div>
+                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" id="new-user-email" class="w-full bg-white border border-slate-300 text-xs font-semibold rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-indigo-500"></div>
+                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Contraseña</label><input type="text" id="new-user-pass" class="w-full bg-white border border-slate-300 text-xs font-semibold rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-indigo-500"></div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Rol</label><select id="new-user-role" class="w-full bg-white border border-slate-300 text-xs font-semibold rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-indigo-500"><option value="user">Auditor</option><option value="admin">Administrador</option></select></div>
+                                <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Validez</label><select id="new-user-duration" class="w-full bg-white border border-slate-300 text-xs font-semibold rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-indigo-500"><option value="24h">24 Horas</option><option value="7d">7 Días</option><option value="30d">30 Días</option><option value="perm">Permanente</option></select></div>
+                            </div>
+                            <button onclick="window.createNewUser()" class="w-full bg-indigo-600 text-white text-xs font-black py-2.5 rounded-lg flex items-center justify-center space-x-1 mt-2"><i data-lucide="user-plus" class="w-4 h-4"></i><span>Generar Credencial</span></button>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-7 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
+                        <div class="bg-slate-50 p-3 border-b border-slate-200"><h3 class="text-sm font-bold text-slate-700">Usuarios Activos</h3></div>
+                        <div id="admin-users-list" class="flex-grow overflow-y-auto max-h-[300px]"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Custom Confirm/Alert Modal (Reemplaza las alertas nativas bloqueadas) -->
+    <div id="custom-modal" class="hidden fixed inset-0 z-[300] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+        <div class="bg-white border border-slate-200 w-full max-w-sm rounded-2xl shadow-xl flex flex-col overflow-hidden transform transition-all">
+            <div class="p-6 text-center space-y-4">
+                <div id="modal-icon-container" class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 bg-orange-100 text-orange-600">
+                    <i id="modal-icon" data-lucide="info" class="w-6 h-6"></i>
+                </div>
+                <h3 class="font-bold text-lg text-slate-800" id="custom-modal-title">Título</h3>
+                <p class="text-sm text-slate-500" id="custom-modal-msg">Mensaje</p>
+            </div>
+            <div class="bg-slate-50 border-t border-slate-200 p-4 flex space-x-3 justify-center" id="custom-modal-actions">
+                <!-- Botones inyectados por JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales Auxiliares -->
+    <div id="area-helper-modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+        <div class="bg-white border border-slate-200 w-full max-w-xl rounded-2xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden">
+            <div class="bg-slate-50 border-b border-slate-200 p-4 flex justify-between">
+                <div class="flex items-center space-x-2"><i data-lucide="drafting-compass" class="w-5 h-5 text-orange-500"></i><h3 class="font-bold text-sm text-slate-800">Cálculo Área</h3></div>
+                <button onclick="window.closeAreaHelper()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="bg-white border-b border-slate-200 px-4 py-1.5 flex space-x-1">
+                <button id="area-btn-regular" onclick="window.switchAreaHelperTab('regular')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-orange-600 text-white">Regular</button>
+                <button id="area-btn-multizone" onclick="window.switchAreaHelperTab('multizone')" class="px-3 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100">Multizona</button>
+            </div>
+            <div class="p-6 flex-grow overflow-y-auto space-y-4">
+                <div id="area-tab-regular" class="area-pane space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Largo (m)</label><input type="number" id="area-regular-length" value="10" step="0.5" oninput="window.calculateRegularArea()" class="w-full bg-white border border-slate-300 text-xs font-bold rounded-lg px-3 py-2 text-slate-800"></div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Ancho (m)</label><input type="number" id="area-regular-width" value="10" step="0.5" oninput="window.calculateRegularArea()" class="w-full bg-white border border-slate-300 text-xs font-bold rounded-lg px-3 py-2 text-slate-800"></div>
+                    </div>
+                </div>
+                <div id="area-tab-multizone" class="area-pane hidden space-y-4">
+                    <div class="flex justify-between"><span class="text-xs text-slate-500">Suma de zonas.</span><button onclick="window.addAreaZoneRow()" class="text-xs bg-slate-100 px-2 py-1 rounded font-bold">Añadir Zona</button></div>
+                    <div id="area-zones-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-1"></div>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between">
+                    <div>
+                        <span class="text-[10px] text-slate-500 font-bold uppercase block">Superficie Total</span>
+                        <span id="area-calculated-total" class="text-2xl font-black text-orange-600">100.00 m²</span>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-slate-50 border-t border-slate-200 p-4 flex space-x-2">
+                <button onclick="window.closeAreaHelper()" class="w-1/3 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold py-2.5 rounded-xl">Cancelar</button>
+                <button onclick="window.applyCalculatedArea()" class="w-2/3 bg-orange-600 hover:bg-orange-500 text-white text-xs font-black py-2.5 rounded-xl flex items-center justify-center gap-1"><i data-lucide="check" class="w-4 h-4"></i><span>Aplicar Superficie</span></button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- JS SCRIPT PRINCIPAL -->
+    <script>
+        const PERMANENT_DATE = 4102444800000;
+
+        const PLAN_EMERGENCIA_QUESTIONS = [
+            { id: 'plan_escrito', label: '¿Existe Plan de Emergencia escrito?', value: true },
+            { id: 'plan_informado', label: '¿Coordinado con Bomberos locales?', value: true },
+            { id: 'simulacro_anual', label: '¿Simulacros prácticos (1/año)?', value: false },
+            { id: 'senalizacion_vias', label: '¿Vías señalizadas y libres?', value: true },
+            { id: 'zonas_seguridad', label: '¿Zonas de Seguridad demarcadas?', value: false }
+        ];
+
+        let appState = {
+            currentProjectId: null,
+            projects: [],
+            client: 'Constructora Alfa S.A.',
+            sectors: [{ id: 'sec-1', name: 'Bodega Principal', area: 350, rating: '4A', reqQty: 0, distance: '15 Metros', maxCov: 150 }],
+            activeSectorIdx: 0,
+            siteTotalReqQty: 0,
+            siteTotalArea: 350,
+            extinguishers: [],
+            totalEmployees: 10,
+            trainedEmployees: 4,
+            hasFireBrigade: false,
+            evacuationChecklist: [...PLAN_EMERGENCIA_QUESTIONS],
+            pinType: 'PQS',
+            pins: [],
+            tasksCompleted: [],
+            profile: { name: '', sns: '', email: '', phone: '', signature: '', logo: null },
+            layoutImage: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=1200&auto=format&fit=crop",
+            users: [{ name: 'Admin Principal', email: 'Admin@riskprice.cl', password: 'Admin2928', role: 'admin', validUntil: PERMANENT_DATE }],
+            currentUser: null
+        };
+
+        let areaHelperState = { activeTab: 'regular', calculatedArea: 100, regularLength: 10, regularWidth: 10, zones: [ { name: 'Principal', length: 10, width: 10, calculated: 100 } ] };
+        let canvas, ctx, isDrawing = false;
+
+        window.initSignaturePad = function() {
+            canvas = document.getElementById('signature-pad');
+            if (!canvas) return;
+            ctx = canvas.getContext('2d');
+            window.resizeCanvas();
+            canvas.addEventListener('mousedown', window.startDrawing);
+            canvas.addEventListener('mousemove', window.draw);
+            canvas.addEventListener('mouseup', window.stopDrawing);
+            canvas.addEventListener('mouseout', window.stopDrawing);
+            canvas.addEventListener('touchstart', e => { const t=e.touches[0]; canvas.dispatchEvent(new MouseEvent('mousedown', {clientX:t.clientX, clientY:t.clientY})); e.preventDefault();}, {passive:false});
+            canvas.addEventListener('touchmove', e => { const t=e.touches[0]; canvas.dispatchEvent(new MouseEvent('mousemove', {clientX:t.clientX, clientY:t.clientY})); e.preventDefault();}, {passive:false});
+            canvas.addEventListener('touchend', e => { canvas.dispatchEvent(new MouseEvent('mouseup', {})); e.preventDefault();}, {passive:false});
+        };
+        
+        window.resizeCanvas = function() {
+            if(!canvas) return; const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width; canvas.height = rect.height || 220;
+            if(ctx) { ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 3; ctx.lineCap = 'round'; }
+        };
+        
+        window.startDrawing = function(e) { isDrawing=true; const p = document.getElementById('sig-pad-prompt'); if(p) p.classList.add('hidden'); const r=canvas.getBoundingClientRect(); ctx.beginPath(); ctx.moveTo(e.clientX-r.left, e.clientY-r.top); };
+        window.draw = function(e) { if(!isDrawing) return; const r=canvas.getBoundingClientRect(); ctx.lineTo(e.clientX-r.left, e.clientY-r.top); ctx.stroke(); };
+        window.stopDrawing = function() { isDrawing=false; };
+        window.clearSignaturePad = function() { if(ctx) ctx.clearRect(0,0,canvas.width,canvas.height); const p = document.getElementById('sig-pad-prompt'); if(p) p.classList.remove('hidden'); if(appState.profile) appState.profile.signature=''; window.saveState(); };
+        window.saveSignaturePad = function() { if(appState.profile && canvas) appState.profile.signature = canvas.toDataURL('image/png'); window.saveState(); };
+
+        window.handleLogoUpload = function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvasTemp = document.createElement('canvas');
+                        const maxDim = 300; 
+                        let w = img.width, h = img.height;
+                        if(w > maxDim || h > maxDim){
+                            if(w > h){ h = Math.round((h * maxDim) / w); w = maxDim; }
+                            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                        }
+                        canvasTemp.width = w; canvasTemp.height = h;
+                        canvasTemp.getContext('2d').drawImage(img, 0, 0, w, h);
+                        if (!appState.profile) appState.profile = {};
+                        appState.profile.logo = canvasTemp.toDataURL('image/png');
+                        window.saveState();
+                        window.renderProfileLogo();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        window.removeLogo = function() {
+            if (appState.profile) appState.profile.logo = null;
+            window.saveState();
+            window.renderProfileLogo();
+        };
+
+        window.renderProfileLogo = function() {
+            const container = document.getElementById('profile-logo-container');
+            const removeBtn = document.getElementById('remove-logo-btn');
+            if(!container) return;
+            
+            if(appState.profile && appState.profile.logo) {
+                container.innerHTML = `<img src="${appState.profile.logo}" class="w-full h-full object-contain p-1">`;
+                if(removeBtn) removeBtn.classList.remove('hidden');
+            } else {
+                container.innerHTML = `<i data-lucide="image-off" class="w-6 h-6 text-slate-300"></i>`;
+                if(removeBtn) removeBtn.classList.add('hidden');
+            }
+            if(window.lucide) lucide.createIcons();
+        };
+
+        window.switchTab = function(tabId) {
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden')); 
+            const tabEl = document.getElementById('tab-' + tabId); 
+            if (tabEl) tabEl.classList.remove('hidden');
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => { 
+                if(btn.id === 'tab-btn-admin') btn.className = "tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 transition-all flex items-center space-x-2"; 
+                else btn.className = "tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition-all flex items-center space-x-2"; 
+            });
+            
+            const activeBtn = document.getElementById('tab-btn-' + tabId);
+            if(activeBtn) { 
+                if(tabId === 'admin') activeBtn.className = "tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-2 bg-indigo-600 text-white shadow-sm"; 
+                else if (tabId === 'historial') activeBtn.className = "tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-2 bg-slate-800 text-white shadow-sm";
+                else activeBtn.className = "tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-2 bg-orange-600 text-white shadow-sm"; 
+            }
+            
+            document.querySelectorAll('.md\\:hidden button[id^="m-tab-btn-"]').forEach(btn => { 
+                if(btn.id === 'm-tab-btn-admin') btn.className = "snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-indigo-500 font-bold text-[10px] transition-colors w-12"; 
+                else btn.className = "snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-slate-500 font-bold text-[10px] transition-colors w-12"; 
+            });
+            
+            const mobileActiveBtn = document.getElementById('m-tab-btn-' + tabId);
+            if(mobileActiveBtn) { 
+                if(tabId === 'admin') mobileActiveBtn.className = "snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-indigo-600 font-bold text-[10px] transition-colors w-12"; 
+                else if(tabId === 'historial') mobileActiveBtn.className = "snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-slate-800 font-bold text-[10px] transition-colors w-12"; 
+                else mobileActiveBtn.className = "snap-center flex-shrink-0 flex flex-col items-center justify-center p-1.5 text-orange-600 font-bold text-[10px] transition-colors w-12"; 
+            }
+
+            const profileHeaderBtn = document.getElementById('header-btn-profile');
+            if (profileHeaderBtn) {
+                if (tabId === 'profile') {
+                    profileHeaderBtn.classList.add('bg-slate-800', 'text-white');
+                    profileHeaderBtn.classList.remove('bg-slate-100', 'text-slate-700');
+                } else {
+                    profileHeaderBtn.classList.remove('bg-slate-800', 'text-white');
+                    profileHeaderBtn.classList.add('bg-slate-100', 'text-slate-700');
+                }
+            }
+            
+            if (tabId === 'informe') window.renderReport(); 
+            if (tabId === 'tareas') window.renderTaskManager(); 
+            if (tabId === 'profile') setTimeout(window.resizeCanvas, 50); 
+            if (tabId === 'admin') window.renderAdminUsers();
+            if (tabId === 'historial') window.renderProjectsList();
+        };
+
+        window.onload = async function() {
+            if(window.lucide) window.lucide.createIcons();
+
+            let loadedData = null;
+            if (window.initCloudStorage) {
+                const isCloudReady = await window.initCloudStorage();
+                if (isCloudReady) {
+                    const connDot = document.getElementById('conn-dot');
+                    const connText = document.getElementById('conn-text');
+                    const connBadge = document.getElementById('connection-status');
+                    if(connDot) { connDot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-ping"; }
+                    if(connText) { connText.innerText = "Nube Ok"; connText.className = "font-bold text-emerald-700"; }
+                    if(connBadge) { connBadge.className = "hidden sm:flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full text-xs"; }
+                    
+                    loadedData = await window.loadFromCloud();
+                }
+            }
+
+            const overlay = document.getElementById('cloud-sync-overlay');
+            if (overlay) overlay.classList.add('hidden', 'opacity-0');
+
+            if (!loadedData) {
+                const localData = localStorage.getItem('risk_fire_state_v9');
+                if (localData) {
+                    try { loadedData = JSON.parse(localData); } catch(e){}
+                }
+            }
+
+            if (loadedData) {
+                appState = Object.assign({}, appState, loadedData);
+                if (!appState.projects) appState.projects = [];
+                if (!appState.currentProjectId) appState.currentProjectId = 'proj-' + Date.now();
+
+                if (appState.users) {
+                    appState.users.forEach(u => {
+                        if (!u.name) u.name = 'Usuario';
+                        if (u.validUntil === null || u.validUntil === undefined) u.validUntil = PERMANENT_DATE;
+                    });
+                }
+                if (appState.currentUser && (appState.currentUser.validUntil === null || appState.currentUser.validUntil === undefined)) {
+                    appState.currentUser.validUntil = PERMANENT_DATE;
+                }
+            } else {
+                appState.currentProjectId = 'proj-' + Date.now();
+            }
+
+            appState.activeSectorIdx = appState.activeSectorIdx || 0;
+            if (!appState.sectors || appState.sectors.length === 0) {
+                appState.sectors = [{ id: 'sec-1', name: 'Bodega Principal', area: 350, rating: '4A', reqQty: 0, distance: '15 Metros', maxCov: 150 }];
+                appState.activeSectorIdx = 0;
+            }
+            if (!appState.sectors[appState.activeSectorIdx]) appState.activeSectorIdx = 0;
+
+            const setSafeValue = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+            
+            setSafeValue('client-name', appState.client);
+            setSafeValue('total-employees', appState.totalEmployees);
+            setSafeValue('trained-employees', appState.trainedEmployees);
+            window.updateEmployeeStatsUI();
+
+            const brigadeEl = document.getElementById('has-fire-brigade'); if (brigadeEl) brigadeEl.checked = appState.hasFireBrigade;
+            
+            setSafeValue('prof-name', appState.profile?.name); setSafeValue('prof-sns', appState.profile?.sns);
+            setSafeValue('prof-email', appState.profile?.email); setSafeValue('prof-phone', appState.profile?.phone);
+            
+            if (appState.layoutImage) {
+                const imgEl = document.getElementById('layout-image'); if (imgEl) imgEl.src = appState.layoutImage;
+                const rImgEl = document.getElementById('report-layout-img'); if (rImgEl) rImgEl.src = appState.layoutImage;
+            }
+
+            const dateSpan = document.getElementById('report-date'); if (dateSpan) dateSpan.innerText = new Date().toLocaleDateString('es-CL');
+
+            window.initSignaturePad();
+            if (appState.profile && appState.profile.signature) {
+                const img = new Image(); img.onload = () => { if (ctx) ctx.drawImage(img, 0, 0); const sp = document.getElementById('sig-pad-prompt'); if(sp) sp.classList.add('hidden'); }; img.src = appState.profile.signature;
+            }
+
+            window.renderProfileLogo();
+
+            const adminExists = appState.users.find(u => u.email === 'Admin@riskprice.cl');
+            if (!adminExists) appState.users.push({ name: 'Admin Principal', email: 'Admin@riskprice.cl', password: 'Admin2928', role: 'admin', validUntil: PERMANENT_DATE });
+
+            window.checkAuth();
+            window.renderSectorsNav();
+            window.renderExtinguishers(); 
+            window.renderEvacuationChecklist(); 
+            window.renderLayoutPins(); 
+            window.calculateAll();
+            window.renderProjectsList();
+        };
+
+        window.saveState = function() { 
+            try { 
+                localStorage.setItem('risk_fire_state_v9', JSON.stringify(appState)); 
+                if (window.saveToCloud) window.saveToCloud(appState);
+            } catch(e){} 
+        };
+
+        window.showCustomModal = function(title, msg, type = 'info', onConfirm = null) {
+            document.getElementById('custom-modal-title').innerText = title;
+            document.getElementById('custom-modal-msg').innerText = msg;
+            
+            const iconContainer = document.getElementById('modal-icon-container');
+            if (type === 'danger') {
+                iconContainer.className = "w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 bg-red-100 text-red-600";
+                iconContainer.innerHTML = '<i data-lucide="alert-triangle" class="w-6 h-6"></i>';
+            } else if (type === 'warning') {
+                iconContainer.className = "w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 bg-amber-100 text-amber-600";
+                iconContainer.innerHTML = '<i data-lucide="help-circle" class="w-6 h-6"></i>';
+            } else {
+                iconContainer.className = "w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 bg-blue-100 text-blue-600";
+                iconContainer.innerHTML = '<i data-lucide="info" class="w-6 h-6"></i>';
+            }
+            if(window.lucide) window.lucide.createIcons();
+
+            const actions = document.getElementById('custom-modal-actions');
+            actions.innerHTML = '';
+
+            if (onConfirm) {
+                const btnCancel = document.createElement('button');
+                btnCancel.className = "w-1/2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold py-2.5 rounded-xl transition-colors";
+                btnCancel.innerText = "Cancelar";
+                btnCancel.onclick = window.closeCustomModal;
+                
+                const btnConfirm = document.createElement('button');
+                btnConfirm.className = `w-1/2 text-white text-xs font-black py-2.5 rounded-xl shadow-sm transition-colors ${type==='danger' ? 'bg-red-600 hover:bg-red-500' : 'bg-amber-500 hover:bg-amber-400'}`;
+                btnConfirm.innerText = "Confirmar";
+                btnConfirm.onclick = () => { window.closeCustomModal(); onConfirm(); };
+                
+                actions.appendChild(btnCancel);
+                actions.appendChild(btnConfirm);
+            } else {
+                const btnOk = document.createElement('button');
+                btnOk.className = "w-full max-w-[200px] bg-slate-800 hover:bg-slate-700 text-white text-xs font-black py-2.5 rounded-xl shadow-sm transition-colors";
+                btnOk.innerText = "Entendido";
+                btnOk.onclick = window.closeCustomModal;
+                actions.appendChild(btnOk);
+            }
+            
+            document.getElementById('custom-modal').classList.remove('hidden');
+        };
+
+        window.closeCustomModal = function() {
+            document.getElementById('custom-modal').classList.add('hidden');
+        };
+
+        window.syncClientData = function() { 
+            const cEl = document.getElementById('client-name');
+            if (cEl) appState.client = cEl.value; 
+            window.saveState(); 
+        };
+
+        window.saveCurrentProject = function() {
+            if (!appState.currentProjectId) appState.currentProjectId = 'proj-' + Date.now();
+            
+            const existingIdx = appState.projects.findIndex(p => p.id === appState.currentProjectId);
+            
+            const projectData = {
+                id: appState.currentProjectId,
+                updatedAt: Date.now(),
+                client: appState.client,
+                sectors: JSON.parse(JSON.stringify(appState.sectors)),
+                activeSectorIdx: appState.activeSectorIdx,
+                extinguishers: JSON.parse(JSON.stringify(appState.extinguishers)),
+                totalEmployees: appState.totalEmployees,
+                trainedEmployees: appState.trainedEmployees,
+                hasFireBrigade: appState.hasFireBrigade,
+                evacuationChecklist: JSON.parse(JSON.stringify(appState.evacuationChecklist)),
+                pins: JSON.parse(JSON.stringify(appState.pins)),
+                tasksCompleted: JSON.parse(JSON.stringify(appState.tasksCompleted)),
+                layoutImage: appState.layoutImage
+            };
+
+            if (existingIdx > -1) {
+                appState.projects[existingIdx] = projectData;
+            } else {
+                appState.projects.push(projectData);
+            }
+            
+            window.saveState();
+            window.renderProjectsList();
+            
+            const btn = document.getElementById('save-project-btn');
+            if (btn) {
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Guardado</span>`;
+                btn.classList.add('bg-emerald-100', 'text-emerald-700', 'border-emerald-200');
+                btn.classList.remove('bg-orange-100', 'text-orange-700', 'border-orange-200');
+                if(window.lucide) window.lucide.createIcons();
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.classList.remove('bg-emerald-100', 'text-emerald-700', 'border-emerald-200');
+                    btn.classList.add('bg-orange-100', 'text-orange-700', 'border-orange-200');
+                    if(window.lucide) window.lucide.createIcons();
+                }, 2000);
+            }
+        };
+
+        window.saveAndPrintReport = function() {
+            window.saveCurrentProject(); 
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        };
+
+        window.loadProject = function(id) {
+            const proj = appState.projects.find(p => p.id === id);
+            if (!proj) return;
+            
+            appState.currentProjectId = proj.id;
+            appState.client = proj.client;
+            appState.sectors = JSON.parse(JSON.stringify(proj.sectors));
+            appState.activeSectorIdx = proj.activeSectorIdx || 0;
+            appState.extinguishers = JSON.parse(JSON.stringify(proj.extinguishers));
+            appState.totalEmployees = proj.totalEmployees;
+            appState.trainedEmployees = proj.trainedEmployees;
+            appState.hasFireBrigade = proj.hasFireBrigade;
+            appState.evacuationChecklist = JSON.parse(JSON.stringify(proj.evacuationChecklist));
+            appState.pins = JSON.parse(JSON.stringify(proj.pins));
+            appState.tasksCompleted = JSON.parse(JSON.stringify(proj.tasksCompleted));
+            appState.layoutImage = proj.layoutImage;
+            
+            window.saveState();
+            
+            const cEl = document.getElementById('client-name'); if (cEl) cEl.value = appState.client;
+            const totEl = document.getElementById('total-employees'); if (totEl) totEl.value = appState.totalEmployees;
+            const traEl = document.getElementById('trained-employees'); if (traEl) traEl.value = appState.trainedEmployees;
+            const briEl = document.getElementById('has-fire-brigade'); if (briEl) briEl.checked = appState.hasFireBrigade;
+            
+            const imgEl = document.getElementById('layout-image'); if (imgEl) imgEl.src = appState.layoutImage || "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=1200&auto=format&fit=crop";
+            const rImgEl = document.getElementById('report-layout-img'); if (rImgEl) rImgEl.src = appState.layoutImage || "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=1200&auto=format&fit=crop";
+            
+            window.updateEmployeeStatsUI();
+            window.renderSectorsNav();
+            window.renderExtinguishers();
+            window.renderEvacuationChecklist();
+            window.renderLayoutPins();
+            window.calculateAll();
+            
+            window.switchTab('calculadora');
+        };
+
+        window.promptNewProject = function() {
+            window.showCustomModal("Nuevo Estudio", "¿Deseas iniciar un nuevo estudio? Asegúrate de haber guardado el actual si no quieres perderlo.", "warning", window.createNewProject);
+        };
+
+        window.createNewProject = function() {
+            appState.currentProjectId = 'proj-' + Date.now();
+            appState.client = 'Nuevo Cliente';
+            appState.sectors = [{ id: 'sec-1', name: 'Bodega Principal', area: 350, rating: '4A', reqQty: 0, distance: '15 Metros', maxCov: 150 }];
+            appState.activeSectorIdx = 0;
+            appState.extinguishers = [];
+            appState.totalEmployees = 10;
+            appState.trainedEmployees = 0;
+            appState.hasFireBrigade = false;
+            appState.evacuationChecklist = JSON.parse(JSON.stringify(PLAN_EMERGENCIA_QUESTIONS));
+            appState.pins = [];
+            appState.tasksCompleted = [];
+            appState.layoutImage = "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=1200&auto=format&fit=crop";
+            
+            window.saveState();
+            
+            const cEl = document.getElementById('client-name'); if (cEl) cEl.value = appState.client;
+            const totEl = document.getElementById('total-employees'); if (totEl) totEl.value = appState.totalEmployees;
+            const traEl = document.getElementById('trained-employees'); if (traEl) traEl.value = appState.trainedEmployees;
+            const briEl = document.getElementById('has-fire-brigade'); if (briEl) briEl.checked = appState.hasFireBrigade;
+            
+            const imgEl = document.getElementById('layout-image'); if (imgEl) imgEl.src = appState.layoutImage;
+            const rImgEl = document.getElementById('report-layout-img'); if (rImgEl) rImgEl.src = appState.layoutImage;
+            
+            window.updateEmployeeStatsUI();
+            window.renderSectorsNav();
+            window.renderExtinguishers();
+            window.renderEvacuationChecklist();
+            window.renderLayoutPins();
+            window.calculateAll();
+            
+            window.switchTab('calculadora');
+        };
+
+        window.promptDeleteProject = function(id, event) {
+            event.stopPropagation();
+            window.showCustomModal("Eliminar Estudio", "¿Eliminar este proyecto de forma permanente? No se podrá recuperar.", "danger", () => window.deleteProject(id));
+        };
+
+        window.deleteProject = function(id) {
+            appState.projects = appState.projects.filter(p => p.id !== id);
+            window.saveState();
+            window.renderProjectsList();
+        };
+
+        window.renderProjectsList = function() {
+            const container = document.getElementById('projects-list-container');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (!appState.projects || appState.projects.length === 0) {
+                container.innerHTML = `<div class="col-span-full p-8 border-2 border-dashed border-slate-200 rounded-2xl text-center text-slate-500"><i data-lucide="folder-open" class="w-10 h-10 mx-auto mb-2 opacity-50"></i><p class="font-bold">No hay estudios guardados.</p><p class="text-xs mt-1">Crea un nuevo estudio o guarda tu progreso actual.</p></div>`;
+                if(window.lucide) window.lucide.createIcons();
+                return;
+            }
+            
+            const sorted = [...appState.projects].sort((a,b) => b.updatedAt - a.updatedAt);
+            
+            sorted.forEach(proj => {
+                const dateStr = new Date(proj.updatedAt).toLocaleDateString('es-CL', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const isActive = proj.id === appState.currentProjectId;
+                const borderClass = isActive ? 'border-orange-500 shadow-md ring-1 ring-orange-500' : 'border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md';
+                const bgClass = isActive ? 'bg-orange-50' : 'bg-slate-50';
+                
+                container.innerHTML += `
+                    <div class="border rounded-2xl p-4 transition-all flex flex-col justify-between ${borderClass} ${bgClass}">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[10px] font-black text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded uppercase">${dateStr}</span>
+                                ${isActive ? '<span class="text-[10px] font-black text-white bg-orange-500 px-2 py-0.5 rounded shadow-sm">ACTIVO</span>' : ''}
+                            </div>
+                            <h3 class="font-black text-slate-800 text-base truncate mb-1" title="${proj.client}">${proj.client}</h3>
+                            <p class="text-xs text-slate-500 font-medium mb-4"><i data-lucide="layers" class="w-3.5 h-3.5 inline mr-1 opacity-70"></i>${proj.sectors.length} Sectores | <i data-lucide="fire-extinguisher" class="w-3.5 h-3.5 inline mr-1 opacity-70 ml-2"></i>${proj.extinguishers.length} Equipos</p>
+                        </div>
+                        <div class="flex space-x-2 pt-3 border-t border-slate-200/60 mt-auto">
+                            <button onclick="window.loadProject('${proj.id}')" class="flex-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 rounded-xl transition-colors flex items-center justify-center">
+                                <i data-lucide="folder-input" class="w-3.5 h-3.5 mr-1"></i> Abrir
+                            </button>
+                            <button onclick="window.promptDeleteProject('${proj.id}', event)" class="bg-white border border-red-200 hover:bg-red-50 text-red-600 p-2 rounded-xl transition-colors" title="Eliminar">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            if(window.lucide) window.lucide.createIcons();
+        };
+
+        window.renderSectorsNav = function() {
+            const nav = document.getElementById('sectors-nav'); if(!nav) return;
+            nav.innerHTML = '';
+            appState.sectors.forEach((sec, idx) => {
+                const isActive = idx === appState.activeSectorIdx;
+                nav.innerHTML += `<button onclick="window.selectSector(${idx})" class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${isActive ? 'bg-orange-600 text-white shadow-md' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}">${sec.name}</button>`;
+            });
+            nav.innerHTML += `<button onclick="window.addSector()" class="px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-slate-100 border border-dashed border-slate-300 text-slate-500 hover:bg-slate-200 transition-all flex items-center"><i data-lucide="plus" class="w-4 h-4 mr-1"></i>Añadir Sector</button>`;
+            if(window.lucide) window.lucide.createIcons();
+
+            const actSec = appState.sectors[appState.activeSectorIdx];
+            const snEl = document.getElementById('sector-name'); if(snEl && document.activeElement !== snEl) snEl.value = actSec.name;
+            const saEl = document.getElementById('sector-area'); if(saEl && document.activeElement !== saEl) saEl.value = actSec.area;
+            const srEl = document.getElementById('sector-rating'); if(srEl && document.activeElement !== srEl) srEl.value = actSec.rating || '4A';
+        };
+
+        window.selectSector = function(idx) {
+            appState.activeSectorIdx = idx;
+            window.saveState();
+            window.renderSectorsNav();
+            window.calculateAll();
+        };
+
+        window.addSector = function() {
+            appState.sectors.push({ id: 'sec-' + Date.now(), name: 'Nuevo Sector', area: 100, rating: '4A', reqQty: 0, distance: '15 Metros', maxCov: 150 });
+            appState.activeSectorIdx = appState.sectors.length - 1;
+            window.saveState(); window.renderSectorsNav(); window.calculateAll();
+        };
+
+        window.promptDeleteSector = function() {
+            if (appState.sectors.length <= 1) return window.showCustomModal("Acción Denegada", "Debe existir al menos 1 sector en el estudio.", "info");
+            window.showCustomModal("Eliminar Sector", "¿Estás seguro que deseas eliminar este sector de la lista?", "danger", window.deleteActiveSector);
+        };
+
+        window.deleteActiveSector = function() {
+            appState.sectors.splice(appState.activeSectorIdx, 1);
+            appState.activeSectorIdx = 0;
+            window.saveState(); window.renderSectorsNav(); window.calculateAll();
+        };
+
+        window.syncSectorData = function() {
+            const sec = appState.sectors[appState.activeSectorIdx];
+            const snEl = document.getElementById('sector-name'); if(snEl) sec.name = snEl.value || 'Sector Sin Nombre';
+            const saEl = document.getElementById('sector-area'); if(saEl) sec.area = parseFloat(saEl.value) || 1;
+            const srEl = document.getElementById('sector-rating'); if(srEl) sec.rating = srEl.value;
+            window.saveState(); window.renderSectorsNav(); window.calculateAll();
+        };
+
+        window.syncProfileData = function() {
+            const nEl = document.getElementById('prof-name');
+            const sEl = document.getElementById('prof-sns');
+            const eEl = document.getElementById('prof-email');
+            const pEl = document.getElementById('prof-phone');
+            if (!appState.profile) appState.profile = {};
+            if (nEl) appState.profile.name = nEl.value;
+            if (sEl) appState.profile.sns = sEl.value;
+            if (eEl) appState.profile.email = eEl.value;
+            if (pEl) appState.profile.phone = pEl.value;
+            window.saveState();
+        };
+
+        window.calculateAll = function() {
+            let siteTotalReqQty = 0;
+            let siteTotalArea = 0;
+
+            appState.sectors.forEach(sec => {
+                if (sec.rating === '4A') sec.maxCov = 150;
+                else if (sec.rating === '6A') sec.maxCov = 225;
+                else if (sec.rating === '10A') sec.maxCov = 375;
+                else if (sec.rating === '20A') sec.maxCov = 420;
+                else if (sec.rating === '40A') sec.maxCov = 900;
+                else { sec.rating = '4A'; sec.maxCov = 150; } 
+                
+                sec.distance = '15 Metros';
+                sec.reqQty = Math.ceil((sec.area || 1) / sec.maxCov);
+
+                siteTotalReqQty += sec.reqQty;
+                siteTotalArea += sec.area;
+            });
+
+            appState.siteTotalReqQty = siteTotalReqQty;
+            appState.siteTotalArea = siteTotalArea;
+
+            const activeSec = appState.sectors[appState.activeSectorIdx];
+            if (!activeSec) return;
+
+            const reqRatingEl = document.getElementById('req-ext-rating'); if(reqRatingEl) reqRatingEl.innerText = activeSec.rating;
+            const reqCovEl = document.getElementById('req-ext-cov'); if(reqCovEl) reqCovEl.innerText = activeSec.maxCov;
+            const reqQtyEl = document.getElementById('req-ext-qty'); if(reqQtyEl) reqQtyEl.innerText = activeSec.reqQty;
+            const reqDistEl = document.getElementById('req-ext-distance'); if(reqDistEl) reqDistEl.innerText = activeSec.distance;
+
+            const globalReq = document.getElementById('global-req-qty-summary'); if(globalReq) globalReq.innerText = `Requiere ${siteTotalReqQty} Equipos`;
+            const globalCur = document.getElementById('global-current-qty-summary'); if(globalCur) globalCur.innerText = `${appState.extinguishers.length} Equipos`;
+
+            window.saveState();
+        };
+
+        window.renderReport = function() {
+            const setHtml = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
+            setHtml('report-client-name', appState.client);
+            setHtml('report-global-area', appState.siteTotalArea);
+            setHtml('report-global-req-qty', appState.siteTotalReqQty);
+            
+            const currentExtQty = appState.extinguishers.length;
+            setHtml('report-global-current-qty', currentExtQty);
+            
+            const complianceBadge = document.getElementById('report-global-compliance-badge');
+            if (complianceBadge) {
+                if (currentExtQty >= appState.siteTotalReqQty) {
+                    complianceBadge.innerText = "CUMPLE NORMATIVA";
+                    complianceBadge.className = "px-2 py-1 rounded text-[10px] font-black border bg-emerald-100 text-emerald-700 border-emerald-300";
+                } else {
+                    complianceBadge.innerText = "NO CUMPLE (DÉFICIT)";
+                    complianceBadge.className = "px-2 py-1 rounded text-[10px] font-black border bg-red-100 text-red-700 border-red-300";
+                }
+            }
+
+            const sectorsContainer = document.getElementById('report-sectors-container');
+            if (sectorsContainer) {
+                sectorsContainer.innerHTML = '';
+                appState.sectors.forEach(sec => {
+                    sectorsContainer.innerHTML += `
+                    <div class="border border-slate-300 rounded-xl overflow-hidden page-break-avoid bg-white">
+                        <div class="bg-slate-100 p-3 border-b border-slate-300 flex justify-between items-center">
+                            <h4 class="font-black text-slate-800 uppercase text-sm">Sector: ${sec.name}</h4>
+                            <div class="text-xs text-slate-600 font-bold">Área Declarada: ${sec.area} m²</div>
+                        </div>
+                        <div class="p-3">
+                            <div class="grid grid-cols-3 gap-4 text-center">
+                                <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                                    <span class="block text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Potencial / Cobertura</span>
+                                    <span class="text-xl font-black text-orange-600">${sec.rating} <span class="text-xs text-slate-500 font-bold">(${sec.maxCov} m²)</span></span>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                                    <span class="block text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Dotación Requerida</span>
+                                    <span class="text-xl font-black text-slate-800">${sec.reqQty} Equipos</span>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                                    <span class="block text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Distancia Traslado</span>
+                                    <span class="text-xl font-black text-slate-800">${sec.distance}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            }
+
+            const extLogContainer = document.getElementById('report-extinguishers-log');
+            if (extLogContainer) {
+                extLogContainer.innerHTML = '';
+                if(appState.extinguishers.length === 0) {
+                    extLogContainer.innerHTML = `<div class="col-span-full p-4 border border-dashed border-slate-300 rounded-xl text-center text-slate-500 text-xs font-bold">No se han inspeccionado extintores físicos.</div>`;
+                } else {
+                    appState.extinguishers.forEach((ext, idx) => {
+                        let issues = [];
+                        if (!ext.manometroOk) issues.push("Manómetro"); if (!ext.cargaOk) issues.push("Carga"); if (!ext.mantencionOk) issues.push("Mantención"); if (!ext.claseOk) issues.push("Clase"); if (!ext.senalizacionOk) issues.push("Señal"); if (!ext.alturaOk) issues.push("Altura"); if (!ext.mangueraOk) issues.push("Manguera"); if (!ext.cilindroOk) issues.push("Cilindro"); if (!ext.capacidadOk) issues.push("Capacidad");
+                        
+                        const status = issues.length === 0 
+                            ? '<span class="text-emerald-600 font-bold">Operativo (OK)</span>' 
+                            : `<span class="text-red-600 font-bold">Anomalías: ${issues.join(', ')}</span>`;
+                        
+                        const photoHtml = ext.photo 
+                            ? `<img src="${ext.photo}" class="w-16 h-16 object-cover rounded border border-slate-200 shadow-sm shrink-0">` 
+                            : `<div class="w-16 h-16 bg-slate-50 border border-slate-200 rounded flex flex-col items-center justify-center text-[8px] text-slate-400 font-bold text-center p-1 shrink-0"><i data-lucide="image-off" class="w-4 h-4 mb-1"></i>Sin Foto</div>`;
+
+                        extLogContainer.innerHTML += `
+                        <div class="border border-slate-200 rounded-xl p-3 bg-slate-50 flex space-x-3 items-start page-break-avoid">
+                            ${photoHtml}
+                            <div class="flex-1 overflow-hidden">
+                                <div class="flex items-center justify-between mb-1.5 border-b border-slate-200 pb-1.5">
+                                    <h5 class="text-xs font-black text-slate-800 truncate pr-2">#${idx+1} | ${ext.location}</h5>
+                                    <span class="text-[9px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-bold whitespace-nowrap shadow-sm">${ext.type} - ${ext.rated}</span>
+                                </div>
+                                <div class="text-[10px] text-slate-600 leading-tight">
+                                    <strong>Estado:</strong> ${status}
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                }
+                if(window.lucide) window.lucide.createIcons();
+            }
+
+            const reportLogo = document.getElementById('report-custom-logo');
+            const defaultLogo = document.getElementById('report-default-logo');
+            if (appState.profile && appState.profile.logo) {
+                if(reportLogo) { reportLogo.src = appState.profile.logo; reportLogo.classList.remove('hidden'); }
+                if(defaultLogo) defaultLogo.classList.add('hidden');
+            } else {
+                if(reportLogo) reportLogo.classList.add('hidden');
+                if(defaultLogo) defaultLogo.classList.remove('hidden');
+            }
+
+            setHtml('report-signature-prevencionista', appState.profile?.name || "Prevencionista");
+            setHtml('report-signature-sns', appState.profile?.sns || "SNS");
+            setHtml('report-signature-contact', `${appState.profile?.email || ''} / ${appState.profile?.phone || ''}`);
+            setHtml('report-signature-client-name', appState.client);
+            
+            const sigImg = document.getElementById('report-signature-img');
+            const sigPh = document.getElementById('report-signature-placeholder');
+            if(appState.profile && appState.profile.signature && sigImg && sigPh) { 
+                sigImg.src = appState.profile.signature; 
+                sigImg.classList.remove('hidden'); 
+                sigPh.classList.add('hidden'); 
+            }
+            
+            window.renderReportActionPlan();
+        };
+
+        window.generateActionPlanArray = function() {
+            let actions = [], id = 1;
+            
+            if (appState.siteTotalReqQty > appState.extinguishers.length) actions.push({ id: 'ACT-'+id++, label: `Instalar ${appState.siteTotalReqQty - appState.extinguishers.length} extintores faltantes según el requerimiento por área del D.S. 594 Art. 46.`, law: 'DS 594 Art 46', priority: 'CRÍTICA', key: 'add_ext' });
+            
+            appState.extinguishers.forEach((ext, i) => {
+                let issues = [];
+                if (!ext.manometroOk) issues.push("Manómetro"); if (!ext.cargaOk) issues.push("Carga"); if (!ext.mantencionOk) issues.push("Mantención"); if (!ext.claseOk) issues.push("Sin clase"); if (!ext.senalizacionOk) issues.push("Señal"); if (!ext.alturaOk) issues.push("Altura"); if (!ext.mangueraOk) issues.push("Manguera"); if (!ext.cilindroOk) issues.push("Cilindro"); if (!ext.capacidadOk) issues.push("Capacidad");
+                if (issues.length > 0) actions.push({ id: 'ACT-'+id++, label: `Reparar anomalías Ext #${i+1} (${ext.location}): ${issues.join(', ')}.`, law: 'DS 594 Art 46', priority: 'ALTA', key: `ext_${ext.id}` });
+            });
+            
+            if (appState.totalEmployees > 0 && appState.trainedEmployees < appState.totalEmployees) {
+                const faltantes = appState.totalEmployees - appState.trainedEmployees;
+                actions.push({ id: 'ACT-'+id++, label: `Capacitar a ${faltantes} trabajador(es) faltantes en uso de extintores (Dotación Total: ${appState.totalEmployees}).`, law: 'DS 594 Art 48', priority: 'ALTA', key: 'train_staff' });
+            }
+
+            appState.evacuationChecklist.forEach(item => {
+                if (!item.value) actions.push({ id: 'ACT-'+id++, label: `Regularizar: ${item.label}`, law: 'DS 594 Art 42', priority: 'MEDIA', key: `evac_${item.id}` });
+            });
+            return actions;
+        };
+
+        window.renderReportActionPlan = function() {
+            const container = document.getElementById('report-action-plan-tbody'); if(!container) return;
+            const actions = window.generateActionPlanArray(); container.innerHTML = '';
+            if (actions.length === 0) { container.innerHTML = `<tr><td colspan="4" class="p-4 border border-slate-300 text-center text-emerald-600 font-bold bg-emerald-50">100% Conforme.</td></tr>`; return; }
+            actions.forEach(act => {
+                const isCompleted = appState.tasksCompleted.includes(act.key);
+                container.innerHTML += `<tr class="border-b border-slate-200"><td class="p-2 border border-slate-300 text-center font-bold text-slate-500">${act.id}</td><td class="p-2 border border-slate-300">${act.label}</td><td class="p-2 border border-slate-300 font-semibold">${act.law}</td><td class="p-2 border border-slate-300 text-center">${isCompleted ? '<span class="text-emerald-600 font-bold">Resuelto ✔</span>' : '<span class="text-red-500 font-bold">Pendiente ❌</span>'}</td></tr>`;
+            });
+        };
+
+        window.renderTaskManager = function() {
+            const container = document.getElementById('tasks-manager-list'); if(!container) return;
+            const actions = window.generateActionPlanArray(); container.innerHTML = '';
+            if (actions.length === 0) {
+                const scoreEl = document.getElementById('dashboard-compliance-score');
+                if(scoreEl) { scoreEl.innerText = "100%"; scoreEl.className = "block text-xl font-black text-emerald-600"; }
+                container.innerHTML = `<div class="bg-emerald-50 border border-emerald-200 p-6 rounded-2xl text-center"><i data-lucide="party-popper" class="w-10 h-10 text-emerald-500 mx-auto"></i><h4 class="font-bold text-emerald-700">100% Conforme</h4></div>`; 
+                if(window.lucide) window.lucide.createIcons(); return;
+            }
+            let resolved = 0;
+            actions.forEach(act => {
+                const isC = appState.tasksCompleted.includes(act.key); if (isC) resolved++;
+                container.innerHTML += `
+                    <div class="border ${isC?'border-emerald-200 bg-emerald-50 opacity-60':'border-slate-200 bg-white'} p-4 rounded-xl flex items-start justify-between gap-4 transition-all shadow-sm">
+                        <div class="space-y-1">
+                            <span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded border border-slate-300">${act.id}</span>
+                            <p class="text-xs font-semibold ${isC?'line-through text-slate-400':'text-slate-800'}">${act.label}</p>
+                        </div>
+                        <button onclick="window.toggleTask('${act.key}')" class="p-2.5 rounded-xl border ${isC?'border-emerald-500 bg-emerald-500 text-white':'border-slate-300 bg-slate-50 text-slate-500'}"><i data-lucide="${isC?'check-square':'square'}" class="w-5 h-5"></i></button>
+                    </div>`;
+            });
+            const score = Math.round((resolved/actions.length)*100);
+            const scoreEl = document.getElementById('dashboard-compliance-score'); 
+            if(scoreEl) {
+                scoreEl.innerText = score + '%';
+                scoreEl.className = `block text-xl font-black ${score <= 40 ? 'text-red-600' : (score < 100 ? 'text-amber-500' : 'text-emerald-600')}`;
+            }
+            if(window.lucide) window.lucide.createIcons();
+        };
+
+        window.toggleTask = function(key) { const idx = appState.tasksCompleted.indexOf(key); if(idx>-1) appState.tasksCompleted.splice(idx,1); else appState.tasksCompleted.push(key); window.saveState(); window.renderTaskManager(); };
+
+        window.renderExtinguishers = function() {
+            const container = document.getElementById('extinguishers-checklist'); if(!container) return; container.innerHTML = '';
+            appState.extinguishers.forEach((ext, idx) => {
+                const photoDisplay = ext.photo 
+                    ? `<img src="${ext.photo}" class="w-full h-full object-cover"><button onclick="window.removeExtinguisherPhoto(${idx})" class="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-bl-lg hover:bg-red-600 transition-colors"><i data-lucide="x" class="w-3 h-3"></i></button>` 
+                    : `<i data-lucide="camera" class="w-5 h-5 text-slate-400"></i>`;
+
+                container.innerHTML += `
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3 relative group">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="bg-slate-200 text-slate-600 font-black text-xs px-2.5 py-1 rounded-md shrink-0">Extintor #${idx+1}</span>
+                                <input type="text" value="${ext.location}" oninput="window.updateExtField(${idx}, 'location', this.value)" class="bg-transparent text-sm font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-orange-500 focus:outline-none w-full md:w-auto" placeholder="Ubicación">
+                                <input type="text" value="${ext.type||'PQS'}" oninput="window.updateExtField(${idx}, 'type', this.value)" class="bg-white border border-slate-200 text-[11px] font-semibold rounded px-2 py-1 text-slate-700 focus:outline-none focus:border-orange-500 w-24 shadow-sm" placeholder="Tipo (ej: PQS)">
+                                <input type="text" value="${ext.rated||'4A'}" oninput="window.updateExtField(${idx}, 'rated', this.value)" class="bg-white border border-slate-200 text-[11px] font-semibold rounded px-2 py-1 text-slate-700 focus:outline-none focus:border-orange-500 w-16 shadow-sm" placeholder="Pot. (4A)">
+                            </div>
+                            <button onclick="window.deleteExtinguisher(${idx})" class="text-slate-400 hover:text-red-500 p-1 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                        
+                        <div class="mt-3 flex items-center space-x-4 bg-white border border-slate-200 p-3 rounded-lg">
+                            <div class="w-14 h-14 bg-slate-100 border border-slate-300 rounded-lg flex items-center justify-center overflow-hidden shrink-0 relative">
+                                ${photoDisplay}
+                            </div>
+                            <div class="flex-1">
+                                <input type="file" id="ext-photo-${idx}" accept="image/*" class="hidden" onchange="window.handleExtinguisherPhoto(${idx}, event)">
+                                <label for="ext-photo-${idx}" class="cursor-pointer text-xs font-bold text-slate-600 bg-white border border-slate-300 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 transition-colors inline-flex items-center">
+                                    <i data-lucide="upload" class="w-3 h-3 mr-1"></i> ${ext.photo ? 'Cambiar Foto' : 'Subir Foto'}
+                                </label>
+                                <p class="text-[9px] text-slate-400 mt-1">Anexar evidencia visual para el reporte.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs mt-3">
+                            ${window.generateCheckboxHtml(idx, ext, 'manometroOk', 'Manómetro')}
+                            ${window.generateCheckboxHtml(idx, ext, 'cargaOk', 'Nivel de carga')}
+                            ${window.generateCheckboxHtml(idx, ext, 'mantencionOk', 'Mantención vigente')}
+                            ${window.generateCheckboxHtml(idx, ext, 'claseOk', 'Clase de fuego')}
+                            ${window.generateCheckboxHtml(idx, ext, 'senalizacionOk', 'Señalización visible')}
+                            ${window.generateCheckboxHtml(idx, ext, 'alturaOk', 'Altura (Max 1,3m)')}
+                            ${window.generateCheckboxHtml(idx, ext, 'mangueraOk', 'Estado manguera')}
+                            ${window.generateCheckboxHtml(idx, ext, 'cilindroOk', 'Estado cilindro')}
+                            ${window.generateCheckboxHtml(idx, ext, 'capacidadOk', 'Capacidad visible')}
+                        </div>
+                    </div>`;
+            }); 
+            if(window.lucide) window.lucide.createIcons();
+        };
+
+        window.handleExtinguisherPhoto = function(idx, event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvasTemp = document.createElement('canvas');
+                        const maxDim = 600; 
+                        let w = img.width, h = img.height;
+                        if(w > maxDim || h > maxDim){
+                            if(w > h){ h = Math.round((h * maxDim) / w); w = maxDim; }
+                            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                        }
+                        canvasTemp.width = w; canvasTemp.height = h;
+                        canvasTemp.getContext('2d').drawImage(img, 0, 0, w, h);
+                        appState.extinguishers[idx].photo = canvasTemp.toDataURL('image/jpeg', 0.6);
+                        window.saveState();
+                        window.renderExtinguishers();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        window.removeExtinguisherPhoto = function(idx) { appState.extinguishers[idx].photo = null; window.saveState(); window.renderExtinguishers(); };
+
+        window.generateCheckboxHtml = function(idx, ext, key, label) { return `<label class="flex items-center space-x-2 p-1.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-slate-300 transition-all"><input type="checkbox" ${ext[key] ? 'checked' : ''} onchange="window.updateExtField(${idx}, '${key}', this.checked)" class="w-3.5 h-3.5 rounded text-orange-600 bg-slate-50 border-slate-300"><span class="text-[11px] text-slate-600 font-medium">${label}</span></label>`; };
+        window.addExtinguisherCheck = function() { appState.extinguishers.push({ id: 'ext-'+Date.now(), location: 'Nueva Ubicación', type: 'PQS 6kg', rated: '4A', photo: null, manometroOk:true, cargaOk:true, mantencionOk:true, claseOk:true, senalizacionOk:true, alturaOk:true, mangueraOk:true, cilindroOk:true, capacidadOk:true }); window.renderExtinguishers(); window.saveState(); window.calculateAll(); };
+        window.updateExtField = function(idx, field, val) { appState.extinguishers[idx][field] = val; window.saveState(); };
+        window.deleteExtinguisher = function(idx) { appState.extinguishers.splice(idx,1); window.renderExtinguishers(); window.saveState(); window.calculateAll(); };
+
+        // Evacuation y Capacitación
+        window.renderEvacuationChecklist = function() {
+            const container = document.getElementById('evacuation-checklist'); if(!container) return; container.innerHTML = '';
+            appState.evacuationChecklist.forEach((item, idx) => { container.innerHTML += `<label class="flex items-start justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 transition-colors"><span class="text-xs font-semibold text-slate-700 max-w-[85%]">${item.label}</span><input type="checkbox" ${item.value ? 'checked' : ''} onchange="appState.evacuationChecklist[${idx}].value=this.checked; window.saveState();" class="w-4 h-4 rounded text-orange-600 bg-white border-slate-300 mt-0.5"></label>`; });
+        };
+        
+        window.updateEmployeeStats = function() {
+            const totEl = document.getElementById('total-employees');
+            const traEl = document.getElementById('trained-employees');
+            if(totEl) appState.totalEmployees = parseInt(totEl.value) || 0;
+            if(traEl) appState.trainedEmployees = parseInt(traEl.value) || 0;
+
+            if (appState.trainedEmployees > appState.totalEmployees) {
+                appState.trainedEmployees = appState.totalEmployees;
+                if(traEl) traEl.value = appState.trainedEmployees;
+            }
+
+            window.saveState();
+            window.updateEmployeeStatsUI();
+        };
+
+        window.updateEmployeeStatsUI = function() {
+            let pct = 0;
+            if (appState.totalEmployees > 0) {
+                pct = Math.round((appState.trainedEmployees / appState.totalEmployees) * 100);
+            }
+            const d = document.getElementById('trained-employees-display');
+            if (d) {
+                d.innerText = pct + '%';
+                if (pct < 100) d.className = "text-lg font-black text-red-600";
+                else d.className = "text-lg font-black text-emerald-600";
+            }
+        };
+
+        window.updateBrigadeStatus = function(checked) { appState.hasFireBrigade = checked; window.saveState(); };
+
+        // Layout
+        window.uploadLayout = function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvasTemp = document.createElement('canvas'); const maxDim = 850; let w = img.width, h = img.height;
+                        if(w>maxDim||h>maxDim){ if(w>h){h=Math.round((h*maxDim)/w); w=maxDim;} else {w=Math.round((w*maxDim)/h); h=maxDim;} }
+                        canvasTemp.width = w; canvasTemp.height = h; canvasTemp.getContext('2d').drawImage(img, 0, 0, w, h);
+                        appState.layoutImage = canvasTemp.toDataURL('image/jpeg', 0.7);
+                        const li = document.getElementById('layout-image'); if(li) li.src = appState.layoutImage; const rli = document.getElementById('report-layout-img'); if(rli) rli.src = appState.layoutImage; window.saveState();
+                    }; img.src = e.target.result;
+                }; reader.readAsDataURL(file);
+            }
+        };
+
+        window.setPinType = function(type) { 
+            appState.pinType = type;
+            document.querySelectorAll('.pin-btn').forEach(btn => { if (btn.id === 'pin-type-TEXT') btn.className = "pin-btn px-2 py-1 rounded-lg text-[10px] font-black flex items-center transition-all text-slate-500 hover:text-slate-800 uppercase tracking-widest"; else btn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-slate-200 bg-white text-slate-500 hover:text-slate-800 shadow-sm"; });
+            const activeBtn = document.getElementById('pin-type-' + type);
+            if (activeBtn) {
+                if (type === 'PQS') activeBtn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-orange-500 bg-orange-50 text-orange-600";
+                else if (type === 'CO2') activeBtn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-cyan-500 bg-cyan-50 text-cyan-600";
+                else if (type === 'K') activeBtn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-slate-300 bg-slate-100 text-slate-800";
+                else if (type === 'RED_HUMEDA') activeBtn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-slate-200 bg-white text-slate-500";
+                else if (type === 'RED_SECA') activeBtn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-red-500 bg-red-50 text-red-700";
+                else if (type === 'SALIDA') activeBtn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-emerald-500 bg-emerald-50 text-emerald-700";
+                else if (type === 'PEE') activeBtn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-slate-200 bg-white text-slate-500";
+                else if (type === 'SUSPEL') activeBtn.className = "pin-btn px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all border border-slate-200 bg-white text-slate-500";
+                else if (type === 'TEXT') activeBtn.className = "pin-btn px-2 py-1 rounded-lg text-[10px] font-black flex items-center transition-all bg-indigo-50 text-indigo-600 uppercase tracking-widest";
+            }
+        };
+
+        window.placeExtinguisherPin = function(event) {
+            const overlay = document.getElementById('layout-canvas-overlay'); if(!overlay) return; const rect = overlay.getBoundingClientRect();
+            let textValue = ''; if (appState.pinType === 'TEXT') { const inp = document.getElementById('pin-text-input'); textValue = inp ? (inp.value || 'Área s/n') : 'Área'; }
+            appState.pins.push({ x: ((event.clientX - rect.left)/rect.width)*100, y: ((event.clientY - rect.top)/rect.height)*100, type: appState.pinType, text: textValue });
+            window.renderLayoutPins(); window.saveState();
+        };
+
+        window.clearLayoutPins = function() { appState.pins = []; window.renderLayoutPins(); window.saveState(); };
+
+        window.renderLayoutPins = function() {
+            const container = document.getElementById('pins-container'), reportContainer = document.getElementById('report-pins-container');
+            if(container) container.innerHTML = ''; if (reportContainer) reportContainer.innerHTML = '';
+            appState.pins.forEach((pin, idx) => {
+                let pinHtml = '', reportPinHtml = '';
+                if (pin.type === 'PQS') { const c = 'bg-red-500 border-red-200 text-white'; pinHtml = `<div class="absolute w-7 h-7 rounded-full border-2 ${c} flex items-center justify-center text-[10px] font-black shadow-lg pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();"><span>PQS</span></div>`; reportPinHtml = `<div class="absolute w-6 h-6 rounded-full border ${c} flex items-center justify-center text-[8px] font-black shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="left: ${pin.x}%; top: ${pin.y}%;"><span>PQS</span></div>`; }
+                else if (pin.type === 'CO2') { const c = 'bg-cyan-500 border-cyan-100 text-slate-900'; pinHtml = `<div class="absolute w-7 h-7 rounded-full border-2 ${c} flex items-center justify-center text-[10px] font-black shadow-lg pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();"><span>CO2</span></div>`; reportPinHtml = `<div class="absolute w-6 h-6 rounded-full border ${c} flex items-center justify-center text-[8px] font-black shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="left: ${pin.x}%; top: ${pin.y}%;"><span>CO2</span></div>`; }
+                else if (pin.type === 'K') { const c = 'bg-slate-300 border-slate-500 text-slate-800'; pinHtml = `<div class="absolute w-7 h-7 rounded-full border-2 ${c} flex items-center justify-center text-[10px] font-black shadow-lg pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();"><span>K</span></div>`; reportPinHtml = `<div class="absolute w-6 h-6 rounded-full border ${c} flex items-center justify-center text-[8px] font-black shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="left: ${pin.x}%; top: ${pin.y}%;"><span>K</span></div>`; }
+                else if (pin.type === 'RED_HUMEDA') { const c = 'bg-blue-600 border-blue-800 text-white rounded-md'; pinHtml = `<div class="absolute w-7 h-7 border-2 ${c} flex items-center justify-center shadow-lg pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();"><i data-lucide="droplet" class="w-4 h-4"></i></div>`; reportPinHtml = `<div class="absolute w-6 h-6 border ${c} flex items-center justify-center shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="left: ${pin.x}%; top: ${pin.y}%;"><span class="text-[7px] font-bold">RH</span></div>`; }
+                else if (pin.type === 'RED_SECA') { const c = 'bg-red-600 border-red-800 text-white rounded-md'; pinHtml = `<div class="absolute w-7 h-7 border-2 ${c} flex items-center justify-center text-[10px] font-black shadow-lg pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();"><span>RS</span></div>`; reportPinHtml = `<div class="absolute w-6 h-6 border ${c} flex items-center justify-center shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="left: ${pin.x}%; top: ${pin.y}%;"><span class="text-[7px] font-bold">RS</span></div>`; }
+                else if (pin.type === 'SALIDA') { const c = 'bg-emerald-600 border-emerald-800 text-white rounded-md'; pinHtml = `<div class="absolute w-7 h-7 border-2 ${c} flex items-center justify-center shadow-lg pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();"><i data-lucide="door-open" class="w-4 h-4"></i></div>`; reportPinHtml = `<div class="absolute w-6 h-6 border ${c} flex items-center justify-center shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="left: ${pin.x}%; top: ${pin.y}%;"><i data-lucide="door-open" class="w-3 h-3"></i></div>`; }
+                else if (pin.type === 'PEE') { const c = 'bg-emerald-500 border-emerald-700 text-white rounded-full'; pinHtml = `<div class="absolute w-8 h-8 border-2 ${c} flex items-center justify-center text-[10px] font-black shadow-lg pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();"><span>PEE</span></div>`; reportPinHtml = `<div class="absolute w-6 h-6 border ${c} flex items-center justify-center shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="left: ${pin.x}%; top: ${pin.y}%;"><span class="text-[7px] font-bold">PEE</span></div>`; }
+                else if (pin.type === 'SUSPEL') { const c = 'bg-amber-400 border-amber-600 text-slate-900 rounded-sm transform rotate-45'; pinHtml = `<div class="absolute w-7 h-7 border-2 ${c} flex items-center justify-center shadow-lg pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();"><div class="-rotate-45"><i data-lucide="skull" class="w-4 h-4"></i></div></div>`; reportPinHtml = `<div class="absolute w-6 h-6 border ${c} flex items-center justify-center shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="left: ${pin.x}%; top: ${pin.y}%;"><div class="-rotate-45 font-bold text-[7px]">SUS</div></div>`; }
+                else if (pin.type === 'TEXT') { const c = 'bg-white/90 backdrop-blur border border-indigo-300 text-indigo-800 rounded-lg shadow-lg whitespace-nowrap'; pinHtml = `<div class="absolute px-2 py-1 ${c} text-xs font-black pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110" style="left: ${pin.x}%; top: ${pin.y}%;" onclick="event.stopPropagation(); appState.pins.splice(${idx},1); window.renderLayoutPins(); window.saveState();">${pin.text}</div>`; reportPinHtml = `<div class="absolute px-1.5 py-0.5 bg-white/90 border border-indigo-300 text-indigo-800 rounded shadow pointer-events-none transform -translate-x-1/2 -translate-y-1/2 text-[9px] font-black whitespace-nowrap" style="left: ${pin.x}%; top: ${pin.y}%;">${pin.text}</div>`; }
+                if(container) container.innerHTML += pinHtml; if (reportContainer) reportContainer.innerHTML += reportPinHtml;
+            });
+            if(window.lucide) window.lucide.createIcons();
+        };
+
+        window.openAreaHelper = function() { const h = document.getElementById('area-helper-modal'); if(h) h.classList.remove('hidden'); window.switchAreaHelperTab('regular'); };
+        window.closeAreaHelper = function() { const h = document.getElementById('area-helper-modal'); if(h) h.classList.add('hidden'); };
+        window.switchAreaHelperTab = function(tabId) { areaHelperState.activeTab = tabId; document.querySelectorAll('.area-pane').forEach(el => el.classList.add('hidden')); document.getElementById('area-tab-' + tabId).classList.remove('hidden'); if (tabId === 'regular') window.calculateRegularArea(); else window.renderAreaZones(); };
+        window.calculateRegularArea = function() { areaHelperState.calculatedArea = (parseFloat(document.getElementById('area-regular-length').value)||0) * (parseFloat(document.getElementById('area-regular-width').value)||0); document.getElementById('area-calculated-total').innerText = areaHelperState.calculatedArea.toFixed(2) + ' m²'; };
+        
+        window.renderAreaZones = function() {
+            const container = document.getElementById('area-zones-list'); if(!container) return; container.innerHTML = '';
+            areaHelperState.zones.forEach((zone, idx) => {
+                container.innerHTML += `
+                    <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-3 relative group">
+                        <div class="flex items-center justify-between gap-2">
+                            <input type="text" value="${zone.name}" oninput="window.updateAreaZone(${idx}, 'name', this.value)" class="bg-transparent text-xs font-black text-orange-600 border-b border-transparent hover:border-slate-300 focus:border-orange-500 focus:outline-none flex-grow" placeholder="Nombre Zona">
+                            <button onclick="window.deleteAreaZoneRow(${idx})" class="text-slate-400 hover:text-red-500 p-1 transition-colors"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div><label class="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Largo</label><input type="number" value="${zone.length}" oninput="window.updateAreaZone(${idx}, 'length', this.value)" class="w-full bg-white border border-slate-300 text-[11px] font-semibold rounded px-2 py-1 text-slate-800"></div>
+                            <div><label class="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Ancho</label><input type="number" value="${zone.width}" oninput="window.updateAreaZone(${idx}, 'width', this.value)" class="w-full bg-white border border-slate-300 text-[11px] font-semibold rounded px-2 py-1 text-slate-800"></div>
+                            <div class="text-right"><span class="block text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Total</span><span class="text-xs font-black text-slate-700 block mt-1">${zone.calculated.toFixed(1)} m²</span></div>
+                        </div>
+                    </div>`;
+            });
+            if(window.lucide) window.lucide.createIcons();
+            window.calculateMultiZoneTotal();
+        };
+        
+        window.addAreaZoneRow = function() { areaHelperState.zones.push({ name: 'Zona ' + (areaHelperState.zones.length + 1), length: 10, width: 10, calculated: 100 }); window.renderAreaZones(); };
+        window.updateAreaZone = function(idx, field, val) { const zone = areaHelperState.zones[idx]; if (field === 'name') zone.name = val; else { zone[field] = parseFloat(val) || 0; zone.calculated = zone.length * zone.width; } window.renderAreaZones(); };
+        window.deleteAreaZoneRow = function(idx) { areaHelperState.zones.splice(idx, 1); window.renderAreaZones(); };
+        window.calculateMultiZoneTotal = function() { let sum = 0; areaHelperState.zones.forEach(z => sum += z.calculated); areaHelperState.calculatedArea = sum; document.getElementById('area-calculated-total').innerText = sum.toFixed(2) + ' m²'; };
+
+        window.applyCalculatedArea = function() { appState.sectors[appState.activeSectorIdx].area = parseFloat(areaHelperState.calculatedArea) || 0; const sArea = document.getElementById('sector-area'); if(sArea) sArea.value = appState.sectors[appState.activeSectorIdx].area; window.calculateAll(); window.saveState(); window.closeAreaHelper(); };
+
+        window.checkAuth = function() {
+            const now = Date.now();
+            if (appState.currentUser && appState.currentUser.validUntil > now) {
+                document.getElementById('login-screen').classList.add('hidden'); 
+                document.getElementById('logout-btn').classList.remove('hidden');
+                document.getElementById('header-btn-profile').classList.remove('hidden');
+                
+                if (appState.currentUser.role === 'admin') { 
+                    document.getElementById('tab-btn-admin').classList.remove('hidden'); 
+                    document.getElementById('m-tab-btn-admin').classList.remove('hidden'); 
+                } else { 
+                    document.getElementById('tab-btn-admin').classList.add('hidden'); 
+                    document.getElementById('m-tab-btn-admin').classList.add('hidden'); 
+                    const adminTab = document.getElementById('tab-admin'); 
+                    if(adminTab && adminTab.classList.contains('hidden') === false) { window.switchTab('historial'); } 
+                }
+            } else {
+                appState.currentUser = null; 
+                document.getElementById('login-screen').classList.remove('hidden'); 
+                document.getElementById('logout-btn').classList.add('hidden'); 
+                document.getElementById('header-btn-profile').classList.add('hidden');
+                window.saveState();
+            }
+        };
+
+        window.login = function() {
+            const email = document.getElementById('login-email').value, pass = document.getElementById('login-password').value, errorEl = document.getElementById('login-error');
+            const user = appState.users.find(u => u.email === email && u.password === pass);
+            if (user) {
+                if (user.validUntil < Date.now()) { errorEl.innerText = "Acceso expirado. Contacta al administrador."; errorEl.classList.remove('hidden'); } 
+                else { 
+                    appState.currentUser = user; window.saveState(); errorEl.classList.add('hidden'); 
+                    document.getElementById('login-email').value = ''; document.getElementById('login-password').value = ''; 
+                    window.checkAuth(); 
+                    if(user.role === 'admin') window.switchTab('admin'); else window.switchTab('historial'); 
+                }
+            } else { errorEl.innerText = "Credenciales incorrectas."; errorEl.classList.remove('hidden'); }
+        };
+
+        window.logout = function() { appState.currentUser = null; window.saveState(); window.checkAuth(); window.switchTab('calculadora'); };
+
+        window.changePassword = function() {
+            const currentPass = document.getElementById('current-password').value;
+            const newPass = document.getElementById('new-password').value;
+            const msgEl = document.getElementById('password-msg');
+
+            if (!currentPass || !newPass) {
+                msgEl.innerText = 'Completa ambos campos.';
+                msgEl.className = 'text-xs font-bold mb-3 p-2 rounded border bg-amber-50 text-amber-600 border-amber-200';
+                msgEl.classList.remove('hidden');
+                return;
+            }
+
+            if (currentPass !== appState.currentUser.password) {
+                msgEl.innerText = 'La contraseña actual es incorrecta.';
+                msgEl.className = 'text-xs font-bold mb-3 p-2 rounded border bg-red-50 text-red-600 border-red-200';
+                msgEl.classList.remove('hidden');
+                return;
+            }
+
+            appState.currentUser.password = newPass;
+            const userIndex = appState.users.findIndex(u => u.email === appState.currentUser.email);
+            if (userIndex > -1) {
+                appState.users[userIndex].password = newPass;
+            }
+            window.saveState();
+
+            msgEl.innerText = 'Contraseña actualizada exitosamente.';
+            msgEl.className = 'text-xs font-bold mb-3 p-2 rounded border bg-emerald-50 text-emerald-600 border-emerald-200';
+            msgEl.classList.remove('hidden');
+
+            document.getElementById('current-password').value = '';
+            document.getElementById('new-password').value = '';
+
+            setTimeout(() => { msgEl.classList.add('hidden'); }, 4000);
+        };
+
+        window.renderAdminUsers = function() {
+            const container = document.getElementById('admin-users-list'); if(!container) return; container.innerHTML = ''; const now = Date.now();
+            appState.users.forEach((u, idx) => {
+                const isExpired = u.validUntil < now, dateStr = u.validUntil >= 4000000000000 ? 'Permanente' : new Date(u.validUntil).toLocaleString('es-CL');
+                const statusBadge = isExpired ? '<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold ml-2">Expirado</span>' : '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold ml-2">Activo</span>';
+                container.innerHTML += `<div class="flex items-center justify-between p-3 border-b border-slate-200 hover:bg-slate-50 transition-colors"><div><p class="text-sm font-bold text-slate-800">${u.name || 'Sin Nombre'} <span class="text-xs text-slate-500 font-normal">(${u.email})</span>${statusBadge}</p><p class="text-xs text-slate-500 mt-1">Rol: <span class="uppercase font-semibold text-slate-700">${u.role}</span> | Vence: ${dateStr}</p></div><button onclick="window.deleteUser(${idx})" class="${u.email === 'Admin@riskprice.cl' ? 'hidden' : ''} p-2 text-slate-400 hover:text-red-600 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
+            }); if(window.lucide) window.lucide.createIcons();
+        };
+
+        window.createNewUser = function() {
+            const name = document.getElementById('new-user-name').value, email = document.getElementById('new-user-email').value, pass = document.getElementById('new-user-pass').value, role = document.getElementById('new-user-role').value, duration = document.getElementById('new-user-duration').value, errorMsg = document.getElementById('admin-error-msg');
+            if(!email || !pass) { errorMsg.innerText = "Ingresa un correo y contraseña válidos."; errorMsg.classList.remove('hidden'); return; }
+            if(appState.users.find(u => u.email === email)) { errorMsg.innerText = "El usuario ya existe en el sistema."; errorMsg.classList.remove('hidden'); return; }
+            errorMsg.classList.add('hidden');
+            let validUntil = Date.now();
+            if (duration === '24h') validUntil += 24 * 60 * 60 * 1000; else if (duration === '7d') validUntil += 7 * 24 * 60 * 60 * 1000; else if (duration === '30d') validUntil += 30 * 24 * 60 * 60 * 1000; else validUntil = PERMANENT_DATE;
+            appState.users.push({ name: name || 'Usuario Auditor', email, password: pass, role, validUntil }); window.saveState(); window.renderAdminUsers(); document.getElementById('new-user-name').value = ''; document.getElementById('new-user-email').value = ''; document.getElementById('new-user-pass').value = '';
+        };
+
+        window.deleteUser = function(idx) { if (appState.users[idx].email === 'Admin@riskprice.cl') return; appState.users.splice(idx, 1); window.saveState(); window.renderAdminUsers(); };
+    </script>
+</body>
+</html>
